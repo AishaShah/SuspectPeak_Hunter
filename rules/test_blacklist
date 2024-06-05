@@ -1,0 +1,54 @@
+rule test_blacklist_fastq:
+    input:
+        fastq="05.test_blacklist/01.fastq"
+    output:
+        filtered_fastq="05.test_blacklist/01.filtered.fastq"
+    shell:
+        """
+        scripts/filter_blacklist.sh {input.fastq} BL1_BL2.overlap.out {output.filtered_fastq}
+        """
+
+rule align_with_blacklist_filtering:
+    input:
+        fastq="05.test_blacklist/01.filtered.fastq"
+    output:
+        bam="02.mapping/01.Filtered/{sample}.with_blacklist.filtered.bam"
+    shell:
+        """
+        bowtie2 -x {genome_index} -U {input.fastq} | samtools view -bS - > {output.bam}
+        samtools sort {output.bam} -o {output.bam}
+        samtools index {output.bam}
+        """
+
+rule align_without_blacklist_filtering:
+    input:
+        fastq="05.test_blacklist/01.fastq"
+    output:
+        bam="02.mapping/01.Filtered/{sample}.without_blacklist.filtered.bam"
+    shell:
+        """
+        bowtie2 -x {genome_index} -U {input.fastq} | samtools view -bS - > {output.bam}
+        samtools sort {output.bam} -o {output.bam}
+        samtools index {output.bam}
+        """
+
+rule call_peaks:
+    input:
+        bam="02.mapping/01.Filtered/{sample}.{filter}.bam"
+    output:
+        peaks="03.PeakCalling/{filter}/{sample}.peaks.bed"
+    shell:
+        """
+        macs2 callpeak -t {input.bam} -f BAM -g hs --nomodel --shift -100 --extsize 200 -B -q 0.01 -n {output.peaks} --outdir 03.PeakCalling/{filter}/
+        """
+
+rule create_venn_diagram:
+    input:
+        peaks_with="03.PeakCalling/with_blacklist_filtered/{sample}.peaks.bed",
+        peaks_without="03.PeakCalling/without_blacklist_filtered/{sample}.peaks.bed"
+    output:
+        venn="04.VennDiagram/{sample}.venn.png"
+    shell:
+        """
+        scripts/plot_venn_diagram.py --peaks1 {input.peaks_with} --peaks2 {input.peaks_without} --output {output.venn}
+        """
