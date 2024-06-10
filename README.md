@@ -29,6 +29,7 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
     - R
 
 3. **Create and activate a conda environment** (optional but recommended):
+   (** TO BE UPDATED **)
     ```sh
     conda create -n suspectpeak_hunter python=3.8
     conda activate suspectpeak_hunter
@@ -37,19 +38,21 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
 
 ### Usage
 1. **Prepare the configuration file (`config.yaml`)**:
+    (** More input options to be added in future **)
     ```yaml
-    genome: "path/to/genome.fa"
+    genome: "Danio_rerio.GRCz11.dna_sm.primary_assembly"
     peak_calling:
       mode: "stringent"
-      threshold: 0.01
-      normalization: "total"
+      threshold: "0.001"
+      normalization: "non"
     generate_suspectList:
-      percentage_threshold: 5
-      num_of_samples: 10
-      minimum_length: 1000
+      percentage_threshold: "60"
+      num_of_samples: "32"
+      minimum_length: "10"
     ```
 
 2. **Prepare the sample sheet (`samplesheet.tsv`)**:
+(TO BE UPDATED)
     ```tsv
     sample    control    type
     sample1   control1   PAIRED
