@@ -92,7 +92,7 @@ Generate a list of suspect regions in the genome based on the peak calling resul
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ### Acknowledgements
-This pipeline was developed by Aisha Shah at the Vastenhouw Lab under the supervision of Prof, Nadine Vastenhouw (PI) and Dora Grabavac (PhD).
+This pipeline was developed by Aisha Shah at the Vastenhouw Lab under the supervision of Prof. Nadine Vastenhouw (PI) and Dora Grabavac (PhD).
 
 ---
 
