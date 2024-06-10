@@ -55,9 +55,11 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
 2. **Prepare the sample sheet (`samplesheet.tsv`)**:
 (TO BE UPDATED)
     ```tsv
-    sample    control    type
-    sample1   control1   PAIRED
-    sample2   control2   SINGLE
+    projectID ctrl	shtname	sample	control	rep	type	path	R1	R2
+    PRJXX   target_enriched sample1 SRRXX SRRXX 1 PAIRED  /path/to/fastq  SRRXX_1.fq  SRRXX_2.fq
+    PRJXX   target_enriched sample1 SRRXX SRRXX 2 PAIRED  /path/to/fastq  SRRXX_1.fq  SRRXX_2.fq
+    PRJXX   neg_ctrl  sample2   SRRXX SRRXX   1 SINGLE  /path/to/fastq  SRRXX.fq
+    PRJXX   target_enriched sample1 SRRXX  1 PAIRED  /path/to/fastq  SRRXX_1.fq  SRRXX_2.fq
     ```
 
 3. **Run the pipeline**:
