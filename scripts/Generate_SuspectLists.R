@@ -79,11 +79,12 @@ stage_colors <- list(cell_stage = c(Dome = "#59b59a", Shield = "#df8948", "15-18
 # peaks called in unfiltered data:
 raw.peaks.file <- raw.peaks.file %>% mutate(length=end-start)
 colnames(raw.peaks.file) <- gsub("\\.stringent.bed|'", "", colnames(raw.peaks.file))
-
+colnames(raw.peaks.file) <- sub(".*/", "", colnames(raw.peaks.file))
 
 # peaks called in filtered data
 filtered.peaks.file <- filtered.peaks.file %>% mutate(length=end-start)
 colnames(filtered.peaks.file) <- gsub("\\.stringent.bed|'", "", colnames(filtered.peaks.file))
+colnames(filtered.peaks.file) <- sub(".*/", "", colnames(filtered.peaks.file))
 
 
 ## chr info
@@ -102,7 +103,7 @@ summarize_peak_data <- function(raw_peaks, metadata) {
   processed_data <- raw_peaks %>%
     pivot_longer(cols = -c(chrom, start, end, num, list, length), names_to = "SampleID", values_to = "Region_Found") %>% 
     filter(Region_Found == 1) %>% 
-    left_join(metadata %>% select(SampleID = Sample_Labels, Targets = Target, Cell_Stage = cell_stage, experiment_group = experiment_group), by = "SampleID") %>% 
+    left_join(metadata %>% select(SampleID = Run, Targets = Target, Cell_Stage = cell_stage, experiment_group = experiment_group), by = "SampleID") %>% 
     filter(experiment_group == "target_enriched") %>%
     mutate(region = paste0(chrom, ":", start, "-", end)) %>%
     group_by(region, chrom, start, end) %>% 
@@ -222,11 +223,10 @@ FigureA <- (column1 | column2) + plot_layout(guides = "collect") & theme(legend.
 #It is better to check out of total regions called as peaks, how many are in suspect list?? per sample?? per target?? or overall?
 FigureB<- (analyze_blacklisted_bases(chr_lengths, 
                                     summary.raw, 
-                                    summary.raw,num_sample = as.integer(options$num_sample),
+                                    num_sample = as.integer(options$num_sample),
                                     min_shared_region_len=as.integer(options$min_shared_region_len))) | 
 (  analyze_blacklisted_bases(chr_lengths, 
                             summary.filt,
-                            summary.raw,
                             num_sample = as.integer(options$num_sample),
                             min_shared_region_len=as.integer(options$min_shared_region_len)))
 #output_file <- "BL"
