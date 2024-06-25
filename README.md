@@ -69,7 +69,7 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
       additional_params: "-q 20 --length 20 --stringency 5"
     trim_galore_se:
       additional_params: "--illumina -q 20 --length 20 --stringency 5"
-    
+      
     # Mapping parameters for bowtie2
     map_bowtie2_se:
       additional_params: "--very-sensitive-local --no-unal"
