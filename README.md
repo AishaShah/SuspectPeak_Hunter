@@ -41,15 +41,52 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
 1. **Prepare the configuration file (`config.yaml`)**:
     (** More input options to be added in future **)
     ```yaml
+    # Genome information
     genome: "Danio_rerio.GRCz11.dna_sm.primary_assembly"
+    
+    # Sample information
+    SL_array: "array.tsv"
+    ApplySL_array: "PRJNA738523.samples.array"
+    
+    # File retention settings
+    keep_trimmed_reads_fastq: "True"
+    keep_BAMs: "True"
+    keep_filtered_BAMs: "True"
+    keep_genomecov_bedgraph: "True"
+    keep_Peaks: "True"
+    
+    # Trimming and mapping settings
+    skip_trimming: "False"  # Set to "True" to skip trimming
+    skip_mapping: "False"   # Set to "True" to skip mapping
+    
+    # Input file type provided:
+    # BAMs_provided: "False"
+    # Trimmed_fastq_provided: "False"
+    # Fastq_provided: "True"
+    
+    # Parameters for Trimgalore
+    trim_galore_pe:
+      additional_params: "-q 20 --length 20 --stringency 5"
+    trim_galore_se:
+      additional_params: "--illumina -q 20 --length 20 --stringency 5"
+    
+    # Mapping parameters for bowtie2
+    map_bowtie2_se:
+      additional_params: "--very-sensitive-local --no-unal"
+    map_bowtie2_pe:
+      additional_params: "--very-sensitive-local --no-mixed --no-unal --dovetail -X 1000"
+    
+    # Peak calling settings
     peak_calling:
       mode: "stringent"
       threshold: "0.001"
       normalization: "non"
+    
+    # Suspect list generation settings
     generate_suspectList:
-      percentage_threshold: "60"
-      num_of_samples: "32"
+      num_of_samples: "3"
       minimum_length: "10"
+      percentage_threshold: "60"
     ```
 
 2. **Prepare the sample sheet (`samplesheet.tsv`)**:
@@ -59,8 +96,8 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
 |-----------|-----------------|--------------|--------|---------|-----|--------|-----------------|------------|------------|
 | PRJXX     | target_enriched | sample1      | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
 | PRJXX     | target_enriched | sample1      | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | neg_ctrl        | sample2      | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq  | SRRXX.fq   |            |
-| PRJXX     | target_enriched | sample1      | SRRXX  |         | 1   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | neg_ctrl        | sample2      | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq  | SRRXX.fq   |  NA        |
+| PRJXX     | target_enriched | sample1      | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
 
 
 3. **Run the pipeline**:
