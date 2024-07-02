@@ -130,17 +130,18 @@ PE=get_outfiles(samps, st, type="PE")
 # rule Initialize_SuspectPeak_Hunter runs all the other rules required for generating suspectlist
 rule Initialize_SuspectPeak_Hunter:
     input:
-        "00.data/00.rawReads",
-        #expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
-        #expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE),
+        #"00.data/00.rawReads",
+        expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
+        expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE),
         #expand("00.data/00.Genome/{genome}.fa.fai" , genome=config["genome"]),
         #expand("01.trim/00.trimmedReads/{sample}_{read}.PE.fq.gz",sample=PE,read=["1","2"]),
         #expand("01.trim/00.trimmedReads/{sample}.SE.fq.gz",sample=SE),
-        expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=PE) ,
-        expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=SE) ,
-        "04.Generating_SuspectLists/00.mergepeaks/rawbam.mergedPeaks.binary.tab",
-        expand("04.Generating_SuspectLists/00.mergepeaks/filteredbam.mergedPeaks{extension}",extension=[".tab",".binary.tab"]),
-        expand("04.Generating_SuspectLists/SuspectList.prcnt_{percentage_threshold}/BL1_BL2.overlap.out",percentage_threshold=config["generate_suspectList"]["percentage_threshold"]),
+        #expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=PE) ,
+        #expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=SE) ,
+        #"04.Generating_SuspectLists/00.mergepeaks/rawbam.mergedPeaks.binary.tab",
+        #"04.Generating_SuspectLists/00.mergepeaks/filteredbam.mergedPeaks.binary.tab",
+        #expand("04.Generating_SuspectLists/SuspectList.prcnt_{percentage_threshold}/BL1_BL2.overlap.out",percentage_threshold=config["generate_suspectList"]["percentage_threshold"]),
+
 
 
 ####################################################################
@@ -151,8 +152,8 @@ rule setup_input_sample_directory:
     input:
         array=SL_array
     output:
-        #expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
-        #expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE) ,
+        expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
+        expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE) ,
         #directory("01.trim/00.trimmedReads"),
         #directory("02.mapping/00.Raw"),
         directory("00.data/00.rawReads")
@@ -337,7 +338,6 @@ rule map_bowtie2_pe:
 rule map_bowtie2_se:
     input:
         read1=rules.trim_galore_se.output.fasta,
-        #fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.1.bt2",genome=config['genome'])
         fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.{id}.bt2",genome=config['genome'], id=["1","2","3","4","rev.1","rev.2"])
     output:
         bam="02.mapping/00.Raw/{sample}.sorted.bam"
@@ -371,6 +371,34 @@ rule map_bowtie2_se:
 
 
 ####################################################################
+# (5) #  BootStrap                                                #
+####################################################################
+
+
+rule downsample_bam:
+    input:
+        bam="02.mapping/00.Raw/{sample}.sorted.bam"
+    output:
+        downsampled_bam="02.mapping/00.Raw/Downsampled/{round}/{sample}.sorted.bam"
+    conda:
+        "envs/bowtie2.yaml"
+    envmodules:
+        "gcc",
+        "samtools"
+    params:
+        reads=config["SubSample"]["Reads"],
+    threads: 24
+    benchmark: "benchmarks/02.02.downsample_bam.{sample}.tsv"
+    log:
+        "logs/02.02.downsample_bam.{sample}.log"
+    shell:
+        """
+        fraction=$(samtools idxstats {input.bam} | cut -f3 | awk -v ct={params.reads} 'BEGIN {total=0} {total += $1} END {print ct/total}')
+        samtools view -b -s ${fraction} {input.bam} > {output.downsampled_bam}
+        """
+
+
+####################################################################
 # (5) #  Remove mitochondrial chromosome                           #
 ####################################################################
 
@@ -385,8 +413,8 @@ rule remove_mitochondrial_chromosome:
         "gcc",
         "samtools"
     log:
-        "logs/02.02.remove_MT.{sample}.log"
-    benchmark: "benchmarks/02.02.remove_MT.{sample}.tsv"
+        "logs/02.03.remove_MT.{sample}.log"
+    benchmark: "benchmarks/02.03.remove_MT.{sample}.tsv"
     shell:
         """
         mkdir -p {output.intermediate}
@@ -531,6 +559,35 @@ rule Regions_Complementary_to_Repeats:
        """
        bedtools complement -i {input.repeats} -g <(sort -k1,1 {input.reference}) > {output.regions_comp_to_repeats}
        """
+
+
+rule GenMap_HighUMapRegions:
+    input:
+        GenMap="{genome}.bedgraph",
+        #GenMap="Danio_rerio.GRCz11.dna_sm.primary_assembly.bedgraph"
+        reference_index="00.data/00.Genome/{genome}.fa.fai"
+    output:
+        LowUMapRegions="{genome}.LowUMapRegions.out",
+        HighUMapRgions="{genome}.HighUMapRgions.out",
+    params:
+        threshold=0.3,
+        read_size=150
+    envmodules:
+        "gcc",
+        "bedtools2"
+    log:
+        "logs/02.03.{genome}.HighUMRegions_genmap.log"
+    message:
+        "**********Running Rule: GenMap_HighUMapRegions************"
+    benchmark: "benchmarks/02.03.{genome}.HighUMRegions_genmap.tsv"
+    shell:
+       """
+       ## run genmap in the same rule
+       #awk '{if($4<{params.threshold}) print $1 "\t" $2 "\t" $3+{params.read_size} "\t" $4}' {input.GenMap}  > {output.LowUMapRegions}
+       python3 scripts/Extract_LowMapRegions.py {input.GenMap} {params.read_size} {params.threshold} {input.reference_index} > {output.LowUMapRegions}
+       bedtools complement -i {sort -k1,1V -k2,2n output.LowUMapRegions} -g <(sort -k1,1V -k2,2n {input.reference_index}) > {output.HighUMapRgions}
+       """
+
 ####################################################################
 # (10) #  Remove multimapped reads and reads overlapping repeats   #
 ####################################################################
@@ -540,7 +597,7 @@ rule Filter_Bams:
        bam_file="02.mapping/00.Raw/{sample}.sorted.bam",
        regions_comp_to_repeat=expand("02.mapping/01.Filtered/intermediate/{genome}.Regions_Complementary_to_Repeats.bed",genome=genome),
     output:
-        intermediate=directory("02.mapping/01.Filtered/intermediate/{sample}"),
+        intermediate=temp(directory("02.mapping/01.Filtered/intermediate/{sample}")),
         filtered_bam="02.mapping/01.Filtered/{sample}.UM.no_repeats.bam"
     threads: 8
     envmodules:
@@ -560,6 +617,38 @@ rule Filter_Bams:
        """
        scripts/Filter_Bams.sh {wildcards.sample} {params.sample_type} {input.bam_file} {input.regions_comp_to_repeat} {params.genome_path}/{params.genome_name}.fa {output.filtered_bam} {output.intermediate} {threads}
        """
+
+
+# (10.b) #  Remove multimapped reads and reads overlapping lowMap Regions   #
+
+
+rule Filter_Bams_GenMap:
+    input:
+       bam_file="02.mapping/00.Raw/{sample}.sorted.bam",
+       regions_comp_to_repeat=expand("00.data/00.Genome/GENMAP/{genome}.HighUMapRegions.{threshold}.out",genome=config["genome"] , threshold=config["GenMap"]["MinMap"]),
+    output:
+        intermediate=temp(directory("02.mapping/01.Filtered/intermediate/{sample}")),
+        filtered_bam="02.mapping/01.Filtered.GenMap/{sample}.UM.no_repeats.bam"
+    threads: 8
+    envmodules:
+        "gcc",
+        "bedtools2",
+        "samtools"
+    log: 
+       "logs/02.04.Filter_Bams.GenMap.{sample}.log"
+    benchmark: "benchmarks/02.04.Filter_Bams.GenMap.{sample}.tsv"
+    message:
+       "**********Running Rule: Filter_Bams (GenMap)************"
+    params:
+        genome_name=config["genome"],
+        genome_path="00.data/00.Genome",
+        sample_type=lambda wildcards: get_type(wildcards.sample, st)
+    shell:
+       """
+       scripts/Filter_Bams.GenMap.sh {wildcards.sample} {params.sample_type} {input.bam_file} {input.regions_comp_to_repeat} {params.genome_path}/{params.genome_name}.fa {output.filtered_bam} {output.intermediate} {threads}
+       """
+
+
 ####################################################################
 # (11) #  BAM2BED: Filtered reads                                  #
 ####################################################################
@@ -569,7 +658,7 @@ use rule bamtobed as bamtobed_filtered with:
         bam="02.mapping/01.Filtered/{sample}.UM.no_repeats.bam"
     output:
         intermediate=temp(directory("03.PeakCalling/01.Filtered/intermediate.bamtobed/{sample}")),
-        bamtobed="03.PeakCalling/01.Filtered/00.bamtobed/{sample}.bamtobed"
+        bamtobed=temp("03.PeakCalling/01.Filtered/00.bamtobed/{sample}.bamtobed")
     threads: 32
     envmodules:
         "gcc",
@@ -591,7 +680,7 @@ use rule genome_cov as genome_cov_filtered with:
     input: 
         bamtobed="03.PeakCalling/01.Filtered/00.bamtobed/{sample}.bamtobed",
     output:
-        genomecov_out="03.PeakCalling/01.Filtered/01.genomecov/{sample}.bedgraph"
+        genomecov_out=temp("03.PeakCalling/01.Filtered/01.genomecov/{sample}.bedgraph") if config["keep_genomecov_bedgraph"] != "True" else "03.PeakCalling/01.Filtered/01.genomecov/{sample}.bedgraph"
     threads: 8
     log: "logs/03.01.filtered.genome_cov.{sample}.log"
     benchmark: "benchmarks/03.01.filtered.genome_cov.{sample}.tsv"
