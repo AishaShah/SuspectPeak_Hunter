@@ -1,6 +1,6 @@
 # path to configuration file for input parameters
 configfile: 'config.yaml'
-
+workdir: config["workdir"]
 # load required python packages
 import pandas as pd
 
@@ -66,16 +66,60 @@ def get_trim_outfiles(test_samps, test_samps_st, type="SE"):
     else: return outfiles_PE
 
 
-def get_outfiles(test_samps, test_samps_st, type="SE"):
+def get_outfiles(test_samps=None, test_samps_st=None, type="all", array=None):
     outfiles_SE = []
     outfiles_PE = []
+    if array:
+        # read samplesheet and set "sample" name column as row index
+        test_samps_st = pd.read_table(array).set_index('sample', drop=False)
+        test_samps = get_samples(test_samps_st)  # get sample names
+    
     for sample in test_samps:
-        if get_type(sample, test_samps_st) == "PAIRED":
-                outfiles_PE.append(sample)
-        elif get_type(sample, test_samps_st) == "SINGLE":
+        sample_type = get_type(sample, test_samps_st)
+        
+        if sample_type == "PAIRED":
+            outfiles_PE.append(sample)
+        elif sample_type == "SINGLE":
             outfiles_SE.append(sample)
-    if type=="SE":  return list(outfiles_SE)
-    else: return list(outfiles_PE)
+    
+    if type == "SE":
+        return list(outfiles_SE)
+    elif type == "PE":
+        return list(outfiles_PE)
+    elif type == "all":
+        return list(outfiles_SE + outfiles_PE)
+    else:
+        raise ValueError("Invalid type parameter. Must be 'SE', 'PE', or 'all'.")
+
+
+def list_array_files(round, path_prefix="",path_suffix="", downsampled=True):
+    if isinstance(round, range):
+        rounds = round
+    else:
+        rounds = [round]
+    
+    all_files = []
+    for rnd in rounds:
+        array = f"arrays/array_{rnd}.tsv"
+        if downsampled:
+            files = [f"{path_prefix}round_{rnd}/{sample}{path_suffix}" for sample in get_outfiles(type="all", array=array)]
+            all_files.extend(files)
+        else:
+            files = [f"{path_prefix}{sample}{path_suffix}" for sample in get_outfiles(type="all", array=array)]
+            all_files.extend(files)
+    
+    return all_files
+
+def check_if_adaptors_provided(st, sample, trim_param):
+    if pd.notna(st.loc[st['sample'] == sample, 'Fwd_adaptor'].values[0]):
+        a=st.loc[st['sample'] == sample, 'Fwd_adaptor'].values[0]
+        trim_param=f"{trim_param} -a '{a}'"
+    if  pd.notna(st.loc[st['sample'] == sample, 'Rev_adaptor'].values[0]):
+        if get_type(sample,st)=="PAIRED":
+            a2=st.loc[st['sample'] == sample, 'Rev_adaptor'].values[0]
+            trim_param=f"{trim_param} -a2 '{a2}'"
+    return trim_param
+
 
 
 
@@ -130,14 +174,26 @@ PE=get_outfiles(samps, st, type="PE")
 # rule Initialize_SuspectPeak_Hunter runs all the other rules required for generating suspectlist
 rule Initialize_SuspectPeak_Hunter:
     input:
-        #"00.data/00.rawReads",
-        expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
-        expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE),
         #expand("00.data/00.Genome/{genome}.fa.fai" , genome=config["genome"]),
         #expand("01.trim/00.trimmedReads/{sample}_{read}.PE.fq.gz",sample=PE,read=["1","2"]),
         #expand("01.trim/00.trimmedReads/{sample}.SE.fq.gz",sample=SE),
-        #expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=PE) ,
-        #expand("02.mapping/00.Raw/{sample}.sorted.bam",sample=SE) ,
+        #expand("01.trim/01.fastqc/{sample}_{id}.PE_fastqc.html",sample=PE,id=["1","2"]),
+        #expand("01.trim/01.fastqc/{sample}.SE_fastqc.html",sample=SE),
+        expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=PE) ,
+        expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=SE) ,
+        expand("02.mapping/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam", sample=samps, num_reads=config["DownSample"]["Reads"]),
+        expand("03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks/{id}.{seacr_mode}.bed",num_reads=config["DownSample"]["Reads"], id=samps,seacr_mode=config["peak_calling"]["mode"]),
+        expand("04.bootstrapping_arrays/array_{round}.tsv", round=list(range(1, config["bootstrap_samples"]["rounds"] + 1))),
+        expand("05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab",num_reads=config["DownSample"]["Reads"],round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
+        #directory(expand("05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}",num_reads=config["DownSample"]["Reads"],percentage_threshold=config["generate_suspectList"]["percentage_threshold"])),
+        expand("05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL1.bed",num_reads=config["DownSample"]["Reads"],percentage_threshold=config["generate_suspectList"]["percentage_threshold"],round=list(range(1, config["bootstrap_samples"]["rounds"] + 1))),
+        
+        
+        
+        expand("05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/{target_group}.rawbam.mergedPeaks.tab",target_group=["TF","active_marks","inactive_marks"],num_reads=config["DownSample"]["Reads"]),
+        expand("05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}.Target_Groups/{target_group}.SL1.bed",target_group=["TF","active_marks","inactive_marks"],num_reads=config["DownSample"]["Reads"],percentage_threshold=config["generate_suspectList"]["percentage_threshold"])
+        #list_array_files(round=range(1, config["bootstrap_samples"]["rounds"] + 1),path_prefix="03.bootstrapping/01.Downsampled_BAMs.raw/",path_suffix=".sorted.bam"),
+        #list_array_files(round=range(1, config["bootstrap_samples"]["rounds"] + 1),path_prefix="03.bootstrapping/01.Downsampled_BAMs.raw/",path_suffix=".no_MT.sorted.bam") 
         #"04.Generating_SuspectLists/00.mergepeaks/rawbam.mergedPeaks.binary.tab",
         #"04.Generating_SuspectLists/00.mergepeaks/filteredbam.mergedPeaks.binary.tab",
         #expand("04.Generating_SuspectLists/SuspectList.prcnt_{percentage_threshold}/BL1_BL2.overlap.out",percentage_threshold=config["generate_suspectList"]["percentage_threshold"]),
@@ -148,25 +204,26 @@ rule Initialize_SuspectPeak_Hunter:
 # (1) #  Setup Input Directory <-- create softlinks to inuput data #
 ####################################################################
 
-rule setup_input_sample_directory:
-    input:
-        array=SL_array
-    output:
-        expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
-        expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE) ,
-        #directory("01.trim/00.trimmedReads"),
-        #directory("02.mapping/00.Raw"),
-        directory("00.data/00.rawReads")
-    params:
-        fq_dir="00.data/00.rawReads",
-        fq_trimmed_dir="01.trim/00.trimmedReads",
-        bam_dir="02.mapping/00.Raw"
-    log:
-        "logs/00.setup_input_sample_directory.log"
-    shell:
-        """
-        scripts/Prepare_Input_Sample_directory.sh {input.array} {params.fq_dir} {params.fq_trimmed_dir} {params.bam_dir}
-        """
+# softlinks to files stored in data strage i.e nas cannot be accessed in slurm jobs 
+# it is better to prepare these folders outside snakemake
+# copy files or create soft links (if data stored on accessible device)
+# rule setup_input_sample_directory:
+#     input:
+#         array=SL_array
+#     output:
+#         expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
+#         expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE) ,
+#         directory("00.data/00.rawReads")
+#     params:
+#         fq_dir="00.data/00.rawReads",
+#         fq_trimmed_dir="01.trim/00.trimmedReads",
+#         bam_dir="02.mapping/00.Raw"
+#     log:
+#         "logs/00.setup_input_sample_directory.log"
+#     shell:
+#         """
+#         scripts/Prepare_Input_Sample_directory.sh {input.array} {params.fq_dir} {params.fq_trimmed_dir} {params.bam_dir}
+#         """
 
 ####################################################################
 # (2) #  FastQC and trimming                                       #
@@ -199,10 +256,11 @@ rule trim_galore_pe:
         report_fwd="01.trim/00.Reports/{sample}_1.PE.trimming_report.txt",
         fasta_rev="01.trim/00.trimmedReads/{sample}_2.PE.fq.gz",
         report_rev="01.trim/00.Reports/{sample}_2.PE.trimming_report.txt",
-    threads: 24
+    threads: 48
     benchmark: "benchmarks/00.trimming.{sample}.tsv"
     params:
-        extra=config["trim_galore_pe"]["additional_params"]
+        #extra=config["trim_galore_pe"]["additional_params"]
+        extra=lambda wildcards: check_if_adaptors_provided(st=st, sample=wildcards.sample, trim_param=config["trim_galore_pe"]["additional_params"])
     log:
         "logs/01.trim_galore_{sample}.log",
     wrapper:
@@ -214,7 +272,7 @@ rule trim_galore_se:
     output:
         fasta="01.trim/00.trimmedReads/{sample}.SE.fq.gz",
         report="01.trim/00.Reports/{sample}.SE.trimming_report.txt",
-    threads: 24
+    threads: 48
     benchmark: "benchmarks/00.trimming.{sample}.tsv"
     params:
         extra=config["trim_galore_se"]["additional_params"],
@@ -224,20 +282,37 @@ rule trim_galore_se:
         "v3.10.2/bio/trim_galore/se"
 
 #### COUNT READS LEFT AFTER TRIMMING
-
-rule trimmedReads_fastqc:
+rule trimmedReads_fastqc_PE:
     input:
-        trimmedread="01.trim/00.trimmedReads/{srr}_{id}.fq.gz"
+        trimmedread="01.trim/00.trimmedReads/{sample}_{id}.PE.fq.gz"
     output:
-        zip="01.trim/01.fastqc/{srr}_{id}_fastqc.zip",
-        html="01.trim/01.fastqc/{srr}_{id}_fastqc.html"
+        zip="01.trim/01.fastqc/{sample}_{id}.PE_fastqc.zip",
+        html="01.trim/01.fastqc/{sample}_{id}.PE_fastqc.html"
     threads:
-        32
+        24
     params:
         path="01.trim/01.fastqc/"
     log:
-        "logs/01.trimmed_fastq_{srr}_{id}.log"
-    benchmark: "benchmarks/01.trimmed_fastq_{srr}_{id}.tsv"
+        "logs/01.trimmed_fastq_{sample}_{id}.log"
+    benchmark: "benchmarks/01.trimmed_fastq_{sample}_{id}.tsv"
+    shell:
+        """
+        fastqc {input.trimmedread} --threads {threads} -o {params.path} 2> {log}
+        """
+
+rule trimmedReads_fastqc_SE:
+    input:
+        trimmedread="01.trim/00.trimmedReads/{sample}.SE.fq.gz"
+    output:
+        zip="01.trim/01.fastqc/{sample}.SE_fastqc.zip",
+        html="01.trim/01.fastqc/{sample}.SE_fastqc.html"
+    threads:
+        24
+    params:
+        path="01.trim/01.fastqc/"
+    log:
+        "logs/01.trimmed_fastq_{sample}.SE.log"
+    benchmark: "benchmarks/01.trimmed_fastq_{sample}.SE.tsv"
     shell:
         """
         fastqc {input.trimmedread} --threads {threads} -o {params.path} 2> {log}
@@ -306,10 +381,9 @@ rule map_bowtie2_pe:
     input:
         read1=rules.trim_galore_pe.output.fasta_fwd,
         read2=rules.trim_galore_pe.output.fasta_rev,
-        #index="00.data/00.Genome/bowtie2_index",
         fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.{id}.bt2",genome=config['genome'], id=["1","2","3","4","rev.1","rev.2"])
     output:
-        bam="02.mapping/00.Raw/{sample}.sorted.bam"
+        bam=temp("02.mapping/00.Raw/{sample}.sorted.bam") if config["keep_Raw_BAMs"] != "True" else "02.mapping/00.Raw/{sample}.sorted.bam"
     conda:
         "envs/bowtie2.yaml"
     envmodules:
@@ -321,7 +395,7 @@ rule map_bowtie2_pe:
         index_path="00.data/00.Genome/bowtie2_index",
         genome="Danio_rerio.GRCz11.dna_sm.primary_assembly",
         additional_params=config["map_bowtie2_pe"]["additional_params"]
-    threads: 24
+    threads: 48
     benchmark: "benchmarks/02.bowtie2_mapping.{sample}.tsv"
     log:
         "logs/02.01.mapping.{sample}.log",
@@ -340,7 +414,7 @@ rule map_bowtie2_se:
         read1=rules.trim_galore_se.output.fasta,
         fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.{id}.bt2",genome=config['genome'], id=["1","2","3","4","rev.1","rev.2"])
     output:
-        bam="02.mapping/00.Raw/{sample}.sorted.bam"
+        bam=temp("02.mapping/00.Raw/{sample}.sorted.bam") if config["keep_Raw_BAMs"] != "True" else "02.mapping/00.Raw/{sample}.sorted.bam"
     conda:
         "envs/bowtie2.yaml"
     envmodules:
@@ -352,7 +426,7 @@ rule map_bowtie2_se:
         index_path="00.data/00.Genome/bowtie2_index",
         genome="Danio_rerio.GRCz11.dna_sm.primary_assembly",
         additional_params=config["map_bowtie2_se"]["additional_params"]
-    threads: 24
+    threads: 48
     benchmark: "benchmarks/02.bowtie2_mapping.{sample}.tsv"
     log:
         "logs/02.01.mapping.{sample}.log"
@@ -371,34 +445,6 @@ rule map_bowtie2_se:
 
 
 ####################################################################
-# (5) #  BootStrap                                                #
-####################################################################
-
-
-rule downsample_bam:
-    input:
-        bam="02.mapping/00.Raw/{sample}.sorted.bam"
-    output:
-        downsampled_bam="02.mapping/00.Raw/Downsampled/{round}/{sample}.sorted.bam"
-    conda:
-        "envs/bowtie2.yaml"
-    envmodules:
-        "gcc",
-        "samtools"
-    params:
-        reads=config["SubSample"]["Reads"],
-    threads: 24
-    benchmark: "benchmarks/02.02.downsample_bam.{sample}.tsv"
-    log:
-        "logs/02.02.downsample_bam.{sample}.log"
-    shell:
-        """
-        fraction=$(samtools idxstats {input.bam} | cut -f3 | awk -v ct={params.reads} 'BEGIN {total=0} {total += $1} END {print ct/total}')
-        samtools view -b -s ${fraction} {input.bam} > {output.downsampled_bam}
-        """
-
-
-####################################################################
 # (5) #  Remove mitochondrial chromosome                           #
 ####################################################################
 
@@ -407,7 +453,7 @@ rule remove_mitochondrial_chromosome:
         bam="02.mapping/00.Raw/{sample}.sorted.bam"
     output:
         intermediate=temp(directory("02.mapping/00.Raw/{sample}")),
-        bam_wo_MT=temp("02.mapping/00.Raw/{sample}.no_MT.sorted.bam") if config["keep_filtered_BAMs"] != "True" else "02.mapping/00.Raw/{sample}.no_MT.sorted.bam"
+        bam_wo_MT=temp("02.mapping/00.Raw/{sample}.no_MT.sorted.bam") if config["keep_BAMs_wo_MT"] != "True" else "02.mapping/00.Raw/{sample}.no_MT.sorted.bam"
     threads: 8
     envmodules:
         "gcc",
@@ -415,15 +461,68 @@ rule remove_mitochondrial_chromosome:
     log:
         "logs/02.03.remove_MT.{sample}.log"
     benchmark: "benchmarks/02.03.remove_MT.{sample}.tsv"
+    message:
+        "**********Running Rule: remove_mitochondrial_chromosome************"
+    shell:
+        "scripts/Remove_Mitochondrial_Chromosome.sh {wildcards.sample} {input.bam} {output.intermediate} {output.bam_wo_MT} {threads}"
+
+
+#### COUNT READS LEFT AFTER REMOVING MITOCHONDRIAL READS <-- done in the "remove_mitochondrial_chromosome" rule
+
+
+####################################################################
+# (5) #  BootStrap                                                #
+####################################################################
+
+
+### Select Samples
+
+
+
+rule bootstrap_samples:
+    input:
+        metadata=SL_array
+    output:
+        outpath=directory("04.bootstrapping_arrays"),
+        expanded_files=expand("04.bootstrapping_arrays/array_{round}.tsv", round=list(range(1, config["bootstrap_samples"]["rounds"] + 1)))
+    params:
+        rounds=config["bootstrap_samples"]["rounds"],
+        samples_per_group=config["bootstrap_samples"]["samples_per_group"],
+        seed=config["bootstrap_samples"]["seed"]
     shell:
         """
-        mkdir -p {output.intermediate}
-        samtools view --threads {threads} -bS {input.bam} -e 'rname != "MT"' > {output.intermediate}/{wildcards.sample}.no_MT.bam
-        samtools sort --threads {threads} {output.intermediate}/{wildcards.sample}.no_MT.bam > {output.bam_wo_MT}
-        samtools index -@ {threads} {output.bam_wo_MT}
+        python3 scripts/bootstrap.py {input.metadata} {params.rounds} {params.samples_per_group} {output.outpath} --seed {params.seed}
         """
 
-#### COUNT READS LEFT AFTER REMOVING MITOCHONDRIAL READS
+### DownSample them
+
+rule downsample_bam:
+    input:
+        #metadata="03.bootstrapping/00.arrays/array_{round}.tsv",
+        #bam="02.mapping/00.Raw/{sample}.no_MT.sorted.bam"
+        bam="02.mapping/00.Raw/{sample}.no_MT.sorted.bam"
+    output:
+        downsampled_bam="02.mapping/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam"
+    conda:
+        "envs/bowtie2.yaml"
+    envmodules:
+        "gcc",
+        "samtools"
+    params:
+        reads=config["DownSample"]["Reads"],
+        reads_PE=config["DownSample"]["Reads_PE"],
+        reads_SE=config["DownSample"]["Reads_SE"],
+        sample_type=lambda wildcards: get_type(wildcards.sample, st)
+    threads: config["DownSample"]["threads"]
+    benchmark:
+        #"benchmarks/02.02.downsample_bam.round_{round}.{sample}.tsv"
+        "benchmarks/02.02.downsample_bam.{num_reads}.round.{sample}.tsv"
+    log:
+        #"logs/02.02.downsample_bam.{round}.{sample}.log"
+        "logs/02.02.downsample_bam.{num_reads}.{sample}.log"
+    shell:
+        "scripts/downsample_bams.sh {input.bam} {params.reads_PE} {params.reads_SE} {params.sample_type} {output.downsampled_bam} {threads}"
+
 
 ####################################################################
 # (6) #  BAM2BED                                                   #
@@ -432,10 +531,10 @@ rule remove_mitochondrial_chromosome:
 
 rule bamtobed:
     input: 
-        bam="02.mapping/00.Raw/{sample}.no_MT.sorted.bam"
+        bam="02.mapping/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam"
     output:
-        intermediate=temp(directory("03.PeakCalling/00.rawData/intermediate/{sample}")),
-        bamtobed=temp("03.PeakCalling/00.rawData/00.bamtobed/{sample}.bamtobed")
+        intermediate=temp(directory("03.PeakCalling/00.rawData/DownSampling_{num_reads}/intermediate/{sample}")),
+        bamtobed=temp("03.PeakCalling/00.rawData/DownSampling_{num_reads}/00.bamtobed/{sample}.bamtobed")
     threads: 32
     params:
         sample_type=lambda wildcards: get_type(wildcards.sample, st)
@@ -444,8 +543,8 @@ rule bamtobed:
         "bedtools2",
         "samtools"
     log: 
-       "logs/03.00.bamtobed.{sample}.log"
-    benchmark: "benchmarks/03.00.bamtobed.{sample}.tsv"
+       "logs/03.00.Downsampling_{num_reads}.bamtobed.{sample}.log"
+    benchmark: "benchmarks/03.00.Downsampling_{num_reads}.bamtobed.{sample}.tsv"
     message:
         "**********Running Rule: bamtobed************"
     shell:
@@ -460,12 +559,12 @@ rule bamtobed:
 
 rule genome_cov:
     input: 
-        bamtobed="03.PeakCalling/00.rawData/00.bamtobed/{sample}.bamtobed"
+        bamtobed="03.PeakCalling/00.rawData/DownSampling_{num_reads}/00.bamtobed/{sample}.bamtobed"
     output:
-        genomecov_out=temp("03.PeakCalling/00.rawData/01.genomecov/{sample}.bedgraph") if config["keep_genomecov_bedgraph"] != "True" else "03.PeakCalling/00.rawData/01.genomecov/{sample}.bedgraph"
+        genomecov_out=temp("03.PeakCalling/00.rawData/DownSampling_{num_reads}/01.genomecov/{sample}.bedgraph") if config["keep_genomecov_bedgraph"] != "True" else "03.PeakCalling/00.rawData/DownSampling_{num_reads}/01.genomecov/{sample}.bedgraph"
     threads: 8
-    log: "logs/03.01.genome_cov.{sample}.log"
-    benchmark: "benchmarks/03.01.genome_cov.{sample}.tsv"
+    log: "logs/03.01.Downsampling_{num_reads}.genome_cov.{sample}.log"
+    benchmark: "benchmarks/03.01.Downsampling_{num_reads}.genome_cov.{sample}.tsv"
     message:
         "**********Running Rule: genome_cov************"
     params:
@@ -487,17 +586,17 @@ rule genome_cov:
 seacr_mode=config["peak_calling"]["mode"]
 rule peak_calling:
     input:
-        bebdgraph_file="03.PeakCalling/00.rawData/01.genomecov/{id}.bedgraph"
+        bebdgraph_file="03.PeakCalling/00.rawData/DownSampling_{num_reads}/01.genomecov/{id}.bedgraph"
     output:
-        seacr_out="03.PeakCalling/00.rawData/02.peaks/{id}.{seacr_mode}.bed"
+        seacr_out="03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks/{id}.{seacr_mode}.bed"
     params:
         threshold=config["peak_calling"]["threshold"],
         normalization=config["peak_calling"]["normalization"],
         mode=config["peak_calling"]["mode"],
-        output_prefix="03.PeakCalling/00.rawData/02.peaks/{id}"
+        output_prefix="03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks/{id}"
     log:  
-       "logs/03.02.peak_calling.{id}.{seacr_mode}.log"
-    benchmark: "benchmarks/03.02.peak_calling.{id}.{seacr_mode}.tsv"
+       "logs/03.02.Downsampling_{num_reads}.peak_calling.{id}.{seacr_mode}.log"
+    benchmark: "benchmarks/03.02.Downsampling_{num_reads}.peak_calling.{id}.{seacr_mode}.tsv"
     shell:
        """
        echo "---- {wildcards.id}:00:Peak Calling using threshold: {params.threshold} normalization:{params.normalization} mode:{params.mode} ------"
@@ -513,22 +612,183 @@ rule peak_calling:
 
 rule overlap_peaks:
     input:
-        peaks=expand("03.PeakCalling/00.rawData/02.peaks/{sample}.{seacr_mode}.bed", sample=samps,seacr_mode=config["peak_calling"]["mode"])
+        peaks=expand("03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks/{sample}.{seacr_mode}.bed", num_reads=config["DownSample"]["Reads"],sample=samps,seacr_mode=config["peak_calling"]["mode"]),
+        sample_array="04.bootstrapping_arrays/array_{round}.tsv"
     output:
-        merged_regions_binary_data = "04.Generating_SuspectLists/00.mergepeaks/rawbam.mergedPeaks.binary.tab",
-        merged_regions_collapsed = "04.Generating_SuspectLists/00.mergepeaks/rawbam.mergedPeaks.tab"
+        merged_regions_binary_data = "05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab",
+        merged_regions_collapsed = "05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/round_{round}.rawbam.mergedPeaks.tab"
     threads: 1
+    params:
+        peak_dir="03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks",
+        bedfile_suffix=expand("{mode}.bed",mode=config["peak_calling"]["mode"])
     envmodules:
         "gcc",
         "bedtools2"
     log:
-        "logs/04.00.overlap_peaks.log"
-    benchmark: "benchmarks/04.00.overlap_peaks.tsv"
+        "logs/04.00.DownSampling_{num_reads}.round_{round}.overlap_peaks.log"
+    benchmark: "benchmarks/04.00.DownSampling_{num_reads}.round_{round}.overlap_peaks.tsv"
     shell:
-        """
-        bedtools multiinter -i {input.peaks} -header > {output.merged_regions_binary_data}
-        scripts/mergePeaks.sh {input.peaks} > {output.merged_regions_collapsed}
-        """
+        "scripts/MergeSelectedPeakFiles.sh {input.sample_array} {params.peak_dir} {params.bedfile_suffix} {output.merged_regions_binary_data} {output.merged_regions_collapsed}"
+
+
+rule overlap_peaks_by_Target_Groups:
+    input:
+        peaks=expand("03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks/{sample}.{seacr_mode}.bed", num_reads=config["DownSample"]["Reads"],sample=samps,seacr_mode=config["peak_calling"]["mode"]),
+        sample_array="array_{target_group}.tsv"
+    output:
+        merged_regions_binary_data = "05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/{target_group}.rawbam.mergedPeaks.binary.tab",
+        merged_regions_collapsed = "05.Generating_SuspectLists/00.DownSampled_{num_reads}.mergepeaks/{target_group}.rawbam.mergedPeaks.tab"
+    threads: 1
+    params:
+        peak_dir="03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks",
+        bedfile_suffix=expand("{mode}.bed",mode=config["peak_calling"]["mode"])
+    envmodules:
+        "gcc",
+        "bedtools2"
+    log:
+        "logs/04.00.DownSampling_{num_reads}.{target_group}.overlap_peaks.log"
+    benchmark: "benchmarks/04.00.DownSampling_{num_reads}.{target_group}.overlap_peaks.tsv"
+    shell:
+        "scripts/MergeSelectedPeakFiles.sh {input.sample_array} {params.peak_dir} {params.bedfile_suffix} {output.merged_regions_binary_data} {output.merged_regions_collapsed}"
+
+
+
+
+####################################################################
+# (15) #  Generating blacklists                                    #
+####################################################################
+
+
+percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
+rule generate_suspectList_R1:
+    input:
+       raw_peaks=rules.overlap_peaks.output.merged_regions_binary_data,
+       #filt_peaks=rules.overlap_peaks_filtered.output.merged_regions_binary_data,
+       chr_lengths="00.data/00.Genome/Danio_rerio.GRCz11.dna_sm.primary_assembly.fa.fai",
+    output:
+        SuspectList="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL1.bed"
+    threads: 1
+    params:
+        num_of_samples=config["generate_suspectList"]["num_of_samples"],
+        minimum_length=config["generate_suspectList"]["minimum_length"],
+        percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
+        metadata=SL_array,
+        outpath="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}"
+    envmodules:
+        "gcc",
+        "bedtools2",
+        "r"
+    log:
+       "logs/05.00.DownSample_{num_reads}.round_{round}.SuspectList.prcnt_{percentage_threshold}.log"
+    message:
+       "**********Running Rule: Generating SuspectLists************"
+    shell:
+       """
+
+       module load gcc bedtools2
+       mkdir -p {params.outpath}
+       Rscript scripts/Generate_SuspectLists.bootstrap.R \
+       --raw_peaks_file={input.raw_peaks} \
+       --chr_lengths_file={input.chr_lengths} \
+       --metadata={params.metadata} \
+       --num_sample={params.num_of_samples} \
+       --percentage_threshold={params.percentage_threshold} \
+       --min_shared_region_len={params.minimum_length} \
+       --output_BL_bases={params.outpath}/round_{wildcards.round}.SL1 \
+       --ignore_filtered_plots="TRUE" > {log} 2>&1
+
+       sort -k1,1V -k2,2n {output.SuspectList} > {params.outpath}/round_{wildcards.round}.SL1.sorting.bed
+       mv {params.outpath}/round_{wildcards.round}.SL1.sorting.bed {output.SuspectList}
+       
+       """
+
+
+rule Reagions_Present_in_all_SL:
+    input:
+       SL=rules.generate_suspectList_R1.output.SuspectList,
+       #filt_peaks=rules.overlap_peaks_filtered.output.merged_regions_binary_data,
+       chr_lengths="00.data/00.Genome/Danio_rerio.GRCz11.dna_sm.primary_assembly.fa.fai",
+    output:
+        Overlap_SLs="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}/all_rounds.SL1.bed"
+    threads: 1
+    params:
+        num_of_samples=config["generate_suspectList"]["num_of_samples"],
+        minimum_length=config["generate_suspectList"]["minimum_length"],
+        percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
+        metadata=SL_array,
+        outpath="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}"
+    envmodules:
+        "gcc",
+        "bedtools2",
+        "r"
+    log:
+       "logs/05.00.DownSample_{num_reads}.SuspectList.prcnt_{percentage_threshold}.log"
+    message:
+       "**********Running Rule: Generating SuspectLists************"
+    shell:
+       """
+        ../../scripts/overlap_SL.sh /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter/05.Generating_SuspectLists/00.DownSampled_3000000.SuspectList.prcnt_50 /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter/05.Generating_SuspectLists/00.DownSampled_3000000.SuspectList.prcnt_50/all_rounds.SL1.tsv
+
+       ## the one below is wrogn i guess
+       module load gcc bedtools2
+       mkdir -p {params.outpath}
+       Rscript scripts/Generate_SuspectLists.bootstrap.R \
+       --raw_peaks_file={input.raw_peaks} \
+       --chr_lengths_file={input.chr_lengths} \
+       --metadata={params.metadata} \
+       --num_sample={params.num_of_samples} \
+       --percentage_threshold={params.percentage_threshold} \
+       --min_shared_region_len={params.minimum_length} \
+       --output_BL_bases={params.outpath}/round_{wildcards.round}.SL1 \
+       --ignore_filtered_plots="TRUE" > {log} 2>&1
+
+       sort -k1,1V -k2,2n {output.SuspectList} > {params.outpath}/round_{wildcards.round}.SL1.sorting.tsv
+       mv {params.outpath}/round_{wildcards.round}.SL1.sorting.tsv {output.SuspectList}
+       
+       """
+
+
+rule generate_suspectList_for_Target_groups:
+    input:
+       raw_peaks=rules.overlap_peaks_by_Target_Groups.output.merged_regions_binary_data,
+       #filt_peaks=rules.overlap_peaks_filtered.output.merged_regions_binary_data,
+       chr_lengths="00.data/00.Genome/Danio_rerio.GRCz11.dna_sm.primary_assembly.fa.fai",
+    output:
+        SuspectList="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}.Target_Groups/{target_group}.SL1.bed"
+    threads: 1
+    params:
+        num_of_samples=config["generate_suspectList"]["num_of_samples"],
+        minimum_length=config["generate_suspectList"]["minimum_length"],
+        percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
+        metadata=SL_array,
+        outpath="05.Generating_SuspectLists/00.DownSampled_{num_reads}.SuspectList.prcnt_{percentage_threshold}.Target_Groups"
+    envmodules:
+        "gcc",
+        "bedtools2",
+        "r"
+    log:
+       "logs/05.00.DownSample_{num_reads}.{target_group}.SuspectList.prcnt_{percentage_threshold}.log"
+    message:
+       "**********Running Rule: Generating SuspectLists************"
+    shell:
+       """
+
+       module load gcc bedtools2
+       mkdir -p {params.outpath}
+       Rscript scripts/Generate_SuspectLists.bootstrap.R \
+       --raw_peaks_file={input.raw_peaks} \
+       --chr_lengths_file={input.chr_lengths} \
+       --metadata={params.metadata} \
+       --num_sample={params.num_of_samples} \
+       --percentage_threshold={params.percentage_threshold} \
+       --min_shared_region_len={params.minimum_length} \
+       --output_BL_bases={params.outpath}/{wildcards.target_group}.SL1 \
+       --ignore_filtered_plots="TRUE" > {log} 2>&1
+
+       sort -k1,1V -k2,2n {output.SuspectList} > {params.outpath}/{wildcards.target_group}.SL1.sorting.bed
+       mv {params.outpath}/{wildcards.target_group}.SL1.sorting.bed {output.SuspectList}
+       
+       """
 
 
 ### Implement Mappability
@@ -781,7 +1041,6 @@ rule generate_suspectList:
        echo "running Plot_Peaks_Overlap.R"
        Rscript scripts/Plot_Peaks_Overlap.R {output.overlap} {params.minimum_length} {output.outpath}
        """
-
 
 
 # collect_stats:
