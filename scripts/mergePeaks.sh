@@ -1,5 +1,5 @@
 #!/bin/bash
-
+module load gcc bedtools2
 # Function to display help message
 display_help() {
     echo "Usage: $0 [FILE]..."

@@ -3,7 +3,7 @@
 ## Vastenhouw Lab - Aisha Shah
 
 ### Overview
-SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list of problematic regions in the genome for peak calling analysis. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and suspect list generation. This pipline can also be use to apply suspect list and call peaks on a given set of samples.
+SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list of problematic regions in the genome for peak calling analysis. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. This pipline can also be use to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
 
 ### Features
 - Quality control of raw reads using FastQC

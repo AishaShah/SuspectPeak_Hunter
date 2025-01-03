@@ -1,0 +1,79 @@
+CONDA_PKGS_DIRS=/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/
+conda create --prefix /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/trimgalore_env -c bioconda -c conda-forge -c anacond trim-galore
+
+conda activate /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/trimgalore_env
+
+conda install multiqc ## didnt work
+conda install conda-forge::openjdk 
+conda install seacr 
+conda install samclip 
+conda install -c conda-forge -c bioconda snakemake #####
+
+
+cd tool
+pip install deeptools=3.5.5
+wget https://github.com/hoffmangroup/umap/archive/refs/tags/1.2.1.zip -O umap-1.2.1.zip
+unzip umap-1.2.1.zip
+cd umap-1.2.1
+python setup.py install
+
+
+
+
+
+
+
+
+
+
+conda create --prefix /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/trimgaloretest_env -c bioconda -c conda-forge -c anacond trim-galore snakemake
+conda activate /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/trimgaloretest_env
+conda install samclip 
+conda install conda-forge::openjdk
+conda install seacr 
+
+
+
+
+
+AGAIN oct-31-2024:
+mamba env create --prefix /work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/trimgalore_env_mamba -f trimgalore_env.yml
+export CONDA_PKGS_DIRS=/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/
+mamba install -c conda-forge pandas
+
+
+Docker:
+cd docker/
+mkdir SuspectPeak_Hunter
+cd SuspectPeak_Hunter/
+touch Dockerfile
+touch environment.yml
+touch entrypoint.sh
+vi environment.yml 
+vi Dockerfile 
+vi entrypoint.sh 
+sudo apt update && sudo apt upgrade -y
+docker --version
+chmod +x entrypoint.sh
+sudo systemctl status docker
+sudo usermod -aG docker $USER
+sudo docker build -t suspectpeak-hpc:latest .
+sudo docker run --rm -it suspectpeak-hpc:latest bash
+
+
+Todo:
+9. Push the Docker Image to a Registry (Optional)
+If your HPC cluster requires the Docker image to be in a registry, push it to Docker Hub or a private registry:
+
+bash
+docker tag suspectpeak-hpc:latest your_registry/suspectpeak-hpc:latest
+docker push your_registry/suspectpeak-hpc:latest
+10. Convert for Singularity (if HPC Requires)
+If your HPC cluster prefers Singularity over Docker, convert the Docker image to a Singularity image:
+bash
+singularity pull docker://your_registry/suspectpeak-hpc:latest
+This command will create a Singularity .sif file, which can be used directly in HPC environments that support Singularity.
+
+
+
+

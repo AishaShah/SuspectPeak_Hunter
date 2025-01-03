@@ -12,6 +12,7 @@ print_help_message <- function() {
     --min_shared_region_len [integer] : Minimum length of shared region (default 10).
     --output_BL_bases [path] : Output path for the bases blacklisted.
     --output_BL_bases_filt [path] : Output path for the filtered bases blacklisted.
+    --ignore_filtered_plots  [TRUE or FALSE] : Generate one or two blacklists.
   ")
 }
 ## CHECK COMMAND LINE ARGUMENTS
@@ -24,7 +25,7 @@ if (length(args) == 0 || args[1] == "--help") {
 # Parse arguments based on their prefix
 options <- list(raw_peaks_file = NULL, filt_peaks_file = NULL, chr_lengths_file = NULL,
                 metadata = NULL, num_sample = 32, percentage_threshold = 20, 
-                min_shared_region_len = 10, output_BL_bases = NULL, output_BL_bases_filt = NULL)
+                min_shared_region_len = 10, output_BL_bases = NULL, output_BL_bases_filt = NULL,ignore_filtered_plots=TRUE)
 
 for (arg in args) {
   key <- sub("^--", "", strsplit(arg, "=")[[1]][1])
@@ -32,17 +33,21 @@ for (arg in args) {
   options[[key]] <- value
 }
 
-if (is.null(options$raw_peaks_file) || is.null(options$filt_peaks_file) || 
-    is.null(options$chr_lengths_file) || is.null(options$output_BL_bases) || 
-    is.null(options$output_BL_bases_filt)) {
+#if (is.null(options$raw_peaks_file) || is.null(options$filt_peaks_file) || 
+#    is.null(options$chr_lengths_file) || is.null(options$output_BL_bases) || 
+#    is.null(options$output_BL_bases_filt)) {
+#  stop("Missing necessary command line arguments. Run with '--help' for more information.")
+#}
+
+ignore_filtered_plots <- options$ignore_filtered_plots
+
+if (is.null(options$raw_peaks_file)  || 
+    is.null(options$chr_lengths_file) || is.null(options$output_BL_bases)) {
   stop("Missing necessary command line arguments. Run with '--help' for more information.")
 }
 
-## LOAD DATA
-raw.peaks.file <- read.csv(options$raw_peaks_file, sep = "\t", header = TRUE, check.names = FALSE)
-filtered.peaks.file <- read.csv(options$filt_peaks_file, sep = "\t", header = TRUE, check.names = FALSE)
-chr_lengths <- read.table(options$chr_lengths_file)
-metadata <-  read.csv(options$metadata, sep = "\t", header = TRUE, check.names = FALSE)
+
+
 
 options(repos = c(CRAN = "https://cloud.r-project.org"))
 
@@ -63,28 +68,31 @@ library(ggh4x)
 library(ggVennDiagram)
 library(gridExtra)
 
+
+
+process_file <- function(file) {
+  f <- read.csv(file, sep="\t", header=T, check.names=FALSE)
+  colnames(f) <- sub(".*\\/", "", colnames(f))
+  colnames(f) <- gsub("\\.stringent.bed|'", "", colnames(f))
+  f <- f %>% mutate(length = end - start)
+  #f <- f %>% filter(num >= 2, length > 10)
+  return(f)
+}
+
+## LOAD DATA
+raw.peaks.file <- process_file(options$raw_peaks_file)
+if (ignore_filtered_plots!="TRUE") {filtered.peaks.file <- process_file(options$filt_peaks_file)}
+chr_lengths <- read.table(options$chr_lengths_file)
+metadata <-  read.csv(options$metadata, sep = "\t", header = TRUE, check.names = FALSE)
+
 ## load metadata
-# Metadata files
-# Not plotting replicates
-#metadata <- read_sheet('https://docs.google.com/spreadsheets/d/1ILO-Fz-FNIOFgycFw1VkThAOn6MiX0oSqNBABf9WexY/edit#gid=1554291637', sheet="CnR.SraRunInfo")
-#metadata <- 
+
 # Define the order of cell stages
 stage_order <- c("Dome", "Shield", "15-18s", "6hpf", "24hpf", "high")
-# Convert the cell_stage column to a factor with custom order
-metadata$cell_stage <- factor(metadata$cell_stage, levels = stage_order)
+# Convert the Stage column to a factor with custom order
+metadata$Stage <- factor(metadata$Stage, levels = stage_order)
 # stage colors
-stage_colors <- list(cell_stage = c(Dome = "#59b59a", Shield = "#df8948", "15-18s" = "#9895c4", "6hpf" = "#e863a7", "24hpf" = "#8ebb5c", high = "#e8be48"))
-
-
-# peaks called in unfiltered data:
-raw.peaks.file <- raw.peaks.file %>% mutate(length=end-start)
-colnames(raw.peaks.file) <- gsub("\\.stringent.bed|'", "", colnames(raw.peaks.file))
-colnames(raw.peaks.file) <- sub(".*/", "", colnames(raw.peaks.file))
-
-# peaks called in filtered data
-filtered.peaks.file <- filtered.peaks.file %>% mutate(length=end-start)
-colnames(filtered.peaks.file) <- gsub("\\.stringent.bed|'", "", colnames(filtered.peaks.file))
-colnames(filtered.peaks.file) <- sub(".*/", "", colnames(filtered.peaks.file))
+stage_colors <- list(Stage = c(Dome = "#59b59a", Shield = "#df8948", "15-18s" = "#9895c4", "6hpf" = "#e863a7", "24hpf" = "#8ebb5c", high = "#e8be48"))
 
 
 ## chr info
@@ -103,13 +111,12 @@ summarize_peak_data <- function(raw_peaks, metadata) {
   processed_data <- raw_peaks %>%
     pivot_longer(cols = -c(chrom, start, end, num, list, length), names_to = "SampleID", values_to = "Region_Found") %>% 
     filter(Region_Found == 1) %>% 
-    left_join(metadata %>% select(SampleID = Run, Targets = Target, Cell_Stage = cell_stage, experiment_group = experiment_group), by = "SampleID") %>% 
-    filter(experiment_group == "target_enriched") %>%
+    left_join(metadata %>% select(SampleID = sample, Targets = Target, Stage = Stage, experiment_group = ctrl, Target_Group), by = "SampleID") %>% 
     mutate(region = paste0(chrom, ":", start, "-", end)) %>%
     group_by(region, chrom, start, end) %>% 
     summarize(num_samples = n_distinct(SampleID),
               num_targets = n_distinct(Targets), 
-              num_stages = n_distinct(Cell_Stage))
+              num_stages = n_distinct(Stage))
   
   return(processed_data)
 }
@@ -127,7 +134,7 @@ get_shared_peaks_plot <- function(data, plot_column = "num_targets", x_title = "
            Peak_Type = ifelse(.data[[plot_column]] == 1, "Unique", "Shared")) %>%
     ggplot(aes(x = .data[[plot_column]], y = freq, fill = Peak_Type)) + 
     geom_col() + 
-    geom_text(aes(label = paste0(round(percentage, 3), " %")), vjust = 0.5, hjust = -0.03, angle = 90, size = 2.8) +  # Add text annotations
+    geom_text(aes(label = paste0(round(percentage, 3), " %")), vjust = 0.5, hjust = -0.03, angle = 90, size = 2.0) +  # Add text annotations
     scale_fill_manual(values = c("Unique" = "darkgreen", "Shared" = "#585858")) +
     labs(x = x_title, y = "Number of\nRegions Shared", title = title) +
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.2)))  # Adjusting y-axis margins
@@ -194,9 +201,9 @@ analyze_blacklisted_bases <- function(chr_lengths,
 
 ## raw:
 summary.raw<-summarize_peak_data(raw.peaks.file,metadata) 
-c1p1 <- get_shared_peaks_plot(summary.raw,plot_column = "num_targets",x_title = "Number of Targets", title = "Peak Calling on unfiltered bams")
-c1p2 <-  get_shared_peaks_plot(summary.raw,plot_column = "num_samples",x_title = "Number of Samples", title = "Peak Calling on unfiltered bams")
-c1p3 <- get_shared_peaks_plot(summary.raw,plot_column = "num_stages",x_title = "Number of Stages", title = "Peak Calling on unfiltered bams")
+c1p1 <- get_shared_peaks_plot(summary.raw,plot_column = "num_targets",x_title = "Number of Targets", title = "Peak Calling on\nunfiltered bams")
+c1p2 <-  get_shared_peaks_plot(summary.raw,plot_column = "num_samples",x_title = "Number of Samples", title = "Peak Calling on\nunfiltered bams")
+c1p3 <- get_shared_peaks_plot(summary.raw,plot_column = "num_stages",x_title = "Number of Stages", title = "Peak Calling on\nunfiltered bams")
 column1 <- (c1p1 / 
               (c1p2+theme(plot.title=element_blank())) / 
               (c1p3+theme(plot.title=element_blank()))   
@@ -205,10 +212,11 @@ column1 <- (c1p1 /
 
 
 ## filtered
+if (ignore_filtered_plots!="TRUE") {
 summary.filt<-summarize_peak_data(filtered.peaks.file,metadata) 
-c2p1 <- get_shared_peaks_plot(summary.filt,plot_column = "num_targets",x_title = "Number of Targets", title = "Peak Calling on filtered bams")
-c2p2 <-  get_shared_peaks_plot(summary.filt,plot_column = "num_samples",x_title = "Number of Samples", title = "Peak Calling on filtered bams")
-c2p3 <- get_shared_peaks_plot(summary.filt,plot_column = "num_stages",x_title = "Number of Stages", title = "Peak Calling on filtered bams")
+c2p1 <- get_shared_peaks_plot(summary.filt,plot_column = "num_targets",x_title = "Number of Targets", title = "Peak Calling on\nfiltered bams")
+c2p2 <-  get_shared_peaks_plot(summary.filt,plot_column = "num_samples",x_title = "Number of Samples", title = "Peak Calling on\nfiltered bams")
+c2p3 <- get_shared_peaks_plot(summary.filt,plot_column = "num_stages",x_title = "Number of Stages", title = "Peak Calling on\nfiltered bams")
 column2 <- ((c2p1 +theme(axis.title.y = element_blank()))/ 
               (c2p2+theme(plot.title=element_blank(), axis.title.y = element_blank())) / 
               (c2p3+theme(plot.title=element_blank(), axis.title.y = element_blank()))   
@@ -216,33 +224,53 @@ column2 <- ((c2p1 +theme(axis.title.y = element_blank()))/
 
 ### plot1
 FigureA <- (column1 | column2) + plot_layout(guides = "collect") & theme(legend.position = "bottom")
-
+} else {
+  FigureA<- column1  + plot_layout(guides = "collect") & theme(legend.position = "bottom", text=element_text(size=5)) 
+}
 
 ### plot2
 ## chossing threshold for % of genome blacklisted:
 #It is better to check out of total regions called as peaks, how many are in suspect list?? per sample?? per target?? or overall?
+if (ignore_filtered_plots!="TRUE") {
 FigureB<- (analyze_blacklisted_bases(chr_lengths, 
-                                    summary.raw, 
-                                    num_sample = as.integer(options$num_sample),
-                                    min_shared_region_len=as.integer(options$min_shared_region_len))) | 
-(  analyze_blacklisted_bases(chr_lengths, 
-                            summary.filt,
-                            num_sample = as.integer(options$num_sample),
-                            min_shared_region_len=as.integer(options$min_shared_region_len)))
-#output_file <- "BL"
+                                     summary.raw, 
+                                     num_sample = as.integer(options$num_sample),
+                                     min_shared_region_len=as.integer(options$min_shared_region_len))) | 
+  (  analyze_blacklisted_bases(chr_lengths, 
+                               summary.filt,
+                               num_sample = as.integer(options$num_sample),
+                               min_shared_region_len=as.integer(options$min_shared_region_len)))
 
+} else {
+  FigureB<- (analyze_blacklisted_bases(chr_lengths, 
+                                       summary.raw, 
+                                       num_sample = as.integer(options$num_sample),
+                                       min_shared_region_len=as.integer(options$min_shared_region_len))) + theme(legend.position = "bottom", text=element_text(size=5)) 
+}
+#output_file <- "BL"
+if (ignore_filtered_plots!="TRUE") {
+  # Save Figure A as JPEG
+  jpeg(paste(options$output_BL_bases_filt, "_figureA_Sharing.jpg", sep=""), width = 7 * 300, height = 7.5 * 300, units = "px", res = 300, quality = 100)
+  print(FigureA)    
+  dev.off()
+  
+  # Save Figure B with different dimensions as JPEG
+  jpeg(paste(options$output_BL_bases_filt, "_figureB_prcntBL.jpg", sep=""), width = 6 * 300, height = 3 * 300, units = "px", res = 300, quality = 100)
+  print(FigureB) 
+  dev.off()
+} else {
 # Save Figure A as JPEG
-jpeg(paste(options$output_BL_bases_filt, "_figureA_Sharing.jpg", sep=""), width = 7 * 300, height = 7.5 * 300, units = "px", res = 300, quality = 100)
-FigureA  
+jpeg(paste(options$output_BL_bases, "_figureA_Sharing.jpg", sep=""), width = (7 * 300)/3, height = (7.5 * 300)/1.5, units = "px", res = 300, quality = 100)
+print(FigureA)  
 dev.off()
 
 # Save Figure B with different dimensions as JPEG
-jpeg(paste(options$output_BL_bases_filt, "_figureB_prcntBL.jpg", sep=""), width = 6 * 300, height = 3 * 300, units = "px", res = 300, quality = 100)
-FigureB  
+jpeg(paste(options$output_BL_bases, "_figureB_prcntBL.jpg", sep=""), width = (6 * 300)/3, height = (3 * 300)/1.5, units = "px", res = 300, quality = 100)
+print(FigureB)  
 dev.off()
+}
 
 ## generating blacklists
-summary.filt <- summary.filt %>% mutate(length = end - start)
 summary.raw <- summary.raw %>% mutate(length = end - start)
 min_num_samples <- as.integer((as.integer(options$num_sample) / 100) * as.integer(options$percentage_threshold))
 
@@ -252,21 +280,25 @@ BL_bases <- summary.raw %>% ungroup %>%
   mutate( INFO=paste0("nsamples:ntargets:nstages|",num_samples,":",num_targets,":",num_stages))  %>%
   select(chrom,start,end,INFO)
 
-BL_bases.filt <- summary.filt %>% ungroup %>%
-  filter(num_samples >= min_num_samples,
-         length >= as.integer(options$min_shared_region_len))  %>% 
-  mutate( INFO=paste0("nsamples:ntargets:nstages|",num_samples,":",num_targets,":",num_stages))  %>%
-  select(chrom,start,end,INFO)
+
+if (ignore_filtered_plots!="TRUE") {
+  summary.filt <- summary.filt %>% mutate(length = end - start)
+  BL_bases.filt <- summary.filt %>% ungroup %>%
+    filter(num_samples >= min_num_samples,
+           length >= as.integer(options$min_shared_region_len))  %>% 
+    mutate( INFO=paste0("nsamples:ntargets:nstages|",num_samples,":",num_targets,":",num_stages))  %>%
+    select(chrom,start,end,INFO)
+}
 
 ## save the files and overlape using bedtools
 
-
+if (ignore_filtered_plots!="TRUE") {
 write.table(BL_bases.filt %>% ungroup(), #%>% select(chrom, start,end,INFO),
-            file=paste(options$output_BL_bases_filt, ".mns_",min_num_samples,".tsv", sep=""),
+            file=paste(options$output_BL_bases_filt, ".bed", sep=""),
             sep = "\t", col.names = FALSE, row.names = FALSE, quote = FALSE)
-
+}
 
 write.table(BL_bases %>% ungroup(),# %>% select(chrom, start,end,INFO), 
-            file=paste(options$output_BL_bases, ".mns_",min_num_samples,".tsv", sep=""),
+            file=paste(options$output_BL_bases,".bed", sep=""),
             sep = "\t", col.names = FALSE, row.names = FALSE, quote = FALSE)
 
