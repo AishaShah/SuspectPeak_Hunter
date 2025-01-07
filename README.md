@@ -17,9 +17,23 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
 
 ### Installation
 
-1.  **Clone the repository**: `sh     git clone https://github.com/yourusername/SuspectPeak_Hunter.git     cd SuspectPeak_Hunter`
+1.  **Clone the repository**: 
+  
+      ```sh  
+      git clone https://github.com/yourusername/SuspectPeak_Hunter.git     
+      cd SuspectPeak_Hunter
+      ```
 
-2.  **Create and activate a conda environment**: `sh     suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"     conda_pkgs_dir="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/"     mamba env create --prefix $suspeak_hunter_env -f trimgalore_env.yml     export CONDA_PKGS_DIRS=$conda_pkgs_dir     mamba install -c conda-forge pandas     conda activate $suspeak_hunter_env`
+2.  **Create and activate a conda environment**: 
+
+      ```sh     
+      suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"   
+      conda_pkgs_dir="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/"     
+      mamba env create --prefix $suspeak_hunter_env -f trimgalore_env.yml     
+      export CONDA_PKGS_DIRS=$conda_pkgs_dir     
+      mamba install -c conda-forge pandas     
+      conda activate $suspeak_hunter_env
+      ```
 
 3.  **Install required software from official websites**:
 
