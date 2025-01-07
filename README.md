@@ -194,11 +194,23 @@ macs2_callpeak:
 
 ### Running the pipeline
 
--   Run locally: `sh       snakemake --cores <number_of_cores>`
+-   Run locally: 
+`snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter`
 
--   Run on HPC cluster: `sh       snakemake XX`
+-   Run on HPC cluster: 
+`snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter --cluster cluster.yaml "{cluster.nodes} {cluster.time} ..."`
 
--   Run using docker: `sh       snakemake XX`
+    The file cluster.yaml contain configuration for running on cluster. for each rule we can define nodes, time etc. if not specified for a rule then default parameters given by __default__ would be used. 
+
+    ```yaml
+    rule A:
+      nodes: 10
+      time:00:10:00
+    ```
+
+
+
+-   Run using docker: `snakemake XX`
 
 ### To Contribute
 
