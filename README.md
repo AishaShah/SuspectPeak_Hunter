@@ -2,20 +2,20 @@
 
 ## Vastenhouw Lab - Aisha Shah
 
-### **Overview**
+### Overview
 
 SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data analysis by identifying "suspect regions" in the genome. These regions are consistently present across multiple samples and often appear in the top-ranked peaks, potentially overshadowing more biologically relevant, target-specific peaks. By providing a list of these recurring regions, SuspectPeak_Hunter enables users to exclude them before peak calling, ensuring that their analyses focus on peaks more likely to be relevant to the histone marks or transcription factors under study. This approach helps improve the accuracy and interpretability of CUT&RUN results, particularly for workflows relying on top-ranked peaks. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. (THIS WAS IMPLEMENTED IN PREVIOUS VERSION) It can also be used to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
 
-### **Main Steps:**
+### Main Steps:
 
 -   Quality control of raw reads using FastQC
--   Read trimming using Trim Galore
+-   Read trimming using Trim Galore to remove adapters and low-quality bases
 -   Genome indexing and mapping using Bowtie2
 -   Peak calling with SEACR
 -   Suspect list generation by identifying regions present across samples in different groups (i.e TF, Active marks, inactive marks)
 -   Call Peaks after applying suspect list (THIS WAS REMOVED FROM CURRENT VERSION)
 
-### **Installation**
+### Installation
 
 **Clone the repository**: 
 
@@ -192,7 +192,7 @@ macs2_callpeak:
   mappable_genome_size: 1368780147
 ```
 
-### **Run the pipeline**:
+### Running the pipeline
 
 -   Run locally: `sh       snakemake --cores <number_of_cores>`
 
@@ -200,33 +200,7 @@ macs2_callpeak:
 
 -   Run using docker: `sh       snakemake XX`
 
-### Pipeline Steps
-
-#### Quality Control
-
-Perform quality control of raw reads using FastQC.
-
-#### Read Trimming
-
-Trim reads using Trim Galore to remove adapters and low-quality bases.
-
-#### Genome Indexing
-
-Index the genome using Bowtie2 for efficient mapping.
-
-#### Mapping
-
-Map the trimmed reads to the genome using Bowtie2.
-
-#### Peak Calling
-
-Identify peaks in the mapped data using SEACR.
-
-#### Generating Suspect Lists
-
-Generate a list of suspect regions in the genome based on the peak calling results.
-
-### Contribution
+### To Contribute
 
 1.  Fork the repository
 2.  Create a new branch (`git checkout -b feature-branch`)
