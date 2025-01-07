@@ -2,7 +2,7 @@
 
 This guide details the `config.yaml` settings for the **SuspectPeak_Hunter** Snakemake pipeline. Each section outlines the default parameters. [, their purpose]
 
-------------------------------------------------------------------------
+
 
 ## General Settings
 
@@ -14,7 +14,7 @@ The working directory where all files, including Snakemake code, input files, in
 
 Set this to a directory that best suits your organizational or storage needs.
 
-------------------------------------------------------------------------
+
 
 ## Genome Information
 
@@ -24,7 +24,7 @@ Specifies the genome assembly file for the analysis.
 
 **Default**: `Danio_rerio.GRCz11.dna_sm.primary_assembly`
 
-------------------------------------------------------------------------
+
 
 ## Sample Information
 
@@ -44,7 +44,7 @@ The `.tsv` file with metadata for samples where the suspect list will be applied
 
 [THIS SHOULD BE UPDATED --\> section ApplySL in config.yaml having parameters 1) array: samples.tsv and 2) apply_SL:True or False]
 
-------------------------------------------------------------------------
+
 
 ## File Settings
 
@@ -58,7 +58,7 @@ Adjust them based on your disk space and the need for downstream analysis.
 -   **`keep_genomecov_bedgraph`**: `True`
 -   **`keep_Peaks`**: `True`
 
-------------------------------------------------------------------------
+
 
 ## Trimming and Mapping
 
@@ -100,7 +100,7 @@ Modify these settings to fine-tune alignment sensitivity and specificity.
     -   **Additional Params**: `--very-sensitive-local --no-mixed --no-unal --dovetail -X 1000`
     -   **Threads**: `24`
 
-------------------------------------------------------------------------
+
 
 ## Downsampling
 
@@ -113,7 +113,7 @@ Adjust read counts and threads to optimize for dataset size and computational co
 -   **Reads_SE**: `10000000`
 -   **Threads**: `8`
 
-------------------------------------------------------------------------
+
 
 ## Peak Calling
 
@@ -127,7 +127,7 @@ Refine the sensitivity and specificity of peak detection using the following par
 -   **Filter by Depth**: `True`
 -   **Min Depth**: `5`
 
-------------------------------------------------------------------------
+
 
 # Parameters for bootstrapping
 
@@ -169,7 +169,7 @@ This section defines the parameters for identifying suspect regions across sampl
 
 Adjust these parameters based on the characteristics of your dataset to optimize suspect region identification.
 
-------------------------------------------------------------------------
+
 
 ## MACS2 Peak Calling
 
