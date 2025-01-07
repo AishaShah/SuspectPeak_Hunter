@@ -6,7 +6,7 @@
 
 SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data analysis by identifying "suspect regions" in the genome. These regions are consistently present across multiple samples and often appear in the top-ranked peaks, potentially overshadowing more biologically relevant, target-specific peaks. By providing a list of these recurring regions, SuspectPeak_Hunter enables users to exclude them before peak calling, ensuring that their analyses focus on peaks more likely to be relevant to the histone marks or transcription factors under study. This approach helps improve the accuracy and interpretability of CUT&RUN results, particularly for workflows relying on top-ranked peaks. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. (THIS WAS IMPLEMENTED IN PREVIOUS VERSION) It can also be used to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
 
-### Features
+### Main Steps:
 
 -   Quality control of raw reads using FastQC
 -   Read trimming using Trim Galore
@@ -17,14 +17,16 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
 
 ### Installation
 
-1.  **Clone the repository**: 
-  
-      ```sh  
-      git clone https://github.com/yourusername/SuspectPeak_Hunter.git     
-      cd SuspectPeak_Hunter
-      ```
+**Clone the repository**: 
 
-2.  **Create and activate a conda environment**: 
+```sh
+git clone https://github.com/yourusername/SuspectPeak_Hunter.git     
+cd SuspectPeak_Hunter
+```
+
+**Option A: Installing in Conda environment**
+
+1.  Create and activate a conda environment: 
 
       ```sh     
       suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"   
@@ -35,7 +37,7 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
       conda activate $suspeak_hunter_env
       ```
 
-3.  **Install required software from official websites**:
+2.  Install required software from official websites:
 
     -   [Snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html)
     -   [FastQC](https://anaconda.org/bioconda/fastqc)
@@ -46,15 +48,31 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
     -   [SEACR](https://github.com/FredHutch/SEACR)
     -   [R](https://rstudio-education.github.io/hopr/starting.html)
 
-**Or instead of using conda (skip point 2, 3) you can install docker:**
+**Option B: Installing Docker**
 
-[TO BE UPDATED]
+[DOCKER SECTION TO BE UPDATED]
 
 ### Usage
+Before running the pipeline, you need to:
 
-Before running pipline you have to setup download samples, setup config file and samplesheet.
+1. Download the samples.
+2. Prepare the samplesheet.
+3. Set up the configuration file.
 
-Samples can be downloaded manually by user or using our script download_samples.py which requires an input file with SRRXXX samples ids (one pre line). See example of input file in examples/ids.txt. s Command line: download_samples.py ids.txt
+
+**Downloading Samples** 
+
+Samples can be downloaded either manually by the user or using the provided script: `scripts/download_samples.py`. This script requires an input file containing SRR sample IDs (one ID per line).
+
+Example Input File:
+examples/ids.txt
+
+    ```yaml
+    SRR328768  
+    SRR865977  
+    ERR099467  
+    ```
+
 
 **Setup input sample tsv file** **(`samplesheet.tsv`)**
 
