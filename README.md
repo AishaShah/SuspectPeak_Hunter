@@ -67,11 +67,17 @@ Samples can be downloaded either manually by the user or using the provided scri
 Example Input File:
 examples/ids.txt
 
-    ```yaml
-    SRR328768  
-    SRR865977  
-    ERR099467  
-    ```
+```yaml
+SRR328768  
+SRR865977  
+ERR099467  
+```
+    
+Command to Run the Script:
+```sh
+python scripts/download_samples.py examples/ids.txt   
+```
+Replace examples/ids.txt with the path to your input file containing sample IDs.
 
 
 **Setup input sample tsv file** **(`samplesheet.tsv`)**
@@ -99,81 +105,82 @@ A tab-separated file containing the same columns as the example. The columns of 
 
 **Prepare the configuration file (`config.yaml`)**:
 
-    (** More input options to be added in future **)
-    ```yaml
-    workdir: "/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter"
-    # Genome information
-    genome: "Danio_rerio.GRCz11.dna_sm.primary_assembly"
-    
-    # Sample information
-    SL_array: "array_rep1.wo_IgG.wo_NegCtrls.tsv"
-    ApplySL_array: "PRJNA738523.samples.array"
-    
-    # File settings
-    keep_trimmed_reads_fastq: "True"
-    keep_Raw_BAMs: "False"
-    keep_BAMs_wo_MT: "True"
-    keep_filtered_BAMs: "True"
-    keep_genomecov_bedgraph: "True"
-    keep_Peaks: "True"
-    
-    # Trimming and mapping settings
-    skip_trimming: "False"  # Set to "True" to skip trimming
-    skip_mapping: "False"   # Set to "True" to skip mapping
-    
-    # Input file type provided:
-    # BAMs_provided: "False"
-    # Trimmed_fastq_provided: "False"
-    # Fastq_provided: "True"
-    
-    # Parameters for Trimgalore
-    trim_galore_pe:
-      additional_params: "--quality 20 --length 20 --stringency 1 -e 0.1"
-      threads: 24
-    trim_galore_se:
-      additional_params: "--illumina -q 20 --length 20 --stringency 5 -e 0.5"
-      threads: 24
-    
-    # Mapping parameters for bowtie2
-    map_bowtie2_se:
-      additional_params: "--very-sensitive-local --no-unal"
-      threads: 24
-    map_bowtie2_pe:
-      additional_params: "--very-sensitive-local --no-mixed --no-unal --dovetail -X 1000"
-      threads: 24
-    
-    bootstrap_samples:
-      rounds: 10
-      samples_per_group: 3
-      seed: 1
-    
-    DownSample:
-      Reads: "10000000" #"3000000" 
-      Reads_PE: "20000000" #"6000000"
-      Reads_SE: "10000000" #"3000000"
-      threads: 8
-    GenMap:
-      MinMap: "0.3"
-    
-    # Peak calling settings
-    peak_calling:
-      mode: "stringent"
-      threshold: "0.1"  # "0.1" "0.2" # "0.5" "0.9" "1" "0.001"
-      normalization: "non"
-      filter_by_depth: True
-      min_depth: 5
-    
-    # Suspect list generation settings
-    generate_suspectList:
-      num_of_samples: "9"
-      minimum_length: "10"
-      percentage_threshold: "80"
-    
-    
-    # Peak calling using MACS2
-    macs2_callpeak:
-      mappable_genome_size: 1368780147
-    ```
+(More input options to be added in future)
+
+```yaml
+workdir: "/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter"
+# Genome information
+genome: "Danio_rerio.GRCz11.dna_sm.primary_assembly"
+
+# Sample information
+SL_array: "array_rep1.wo_IgG.wo_NegCtrls.tsv"
+ApplySL_array: "PRJNA738523.samples.array"
+
+# File settings
+keep_trimmed_reads_fastq: "True"
+keep_Raw_BAMs: "False"
+keep_BAMs_wo_MT: "True"
+keep_filtered_BAMs: "True"
+keep_genomecov_bedgraph: "True"
+keep_Peaks: "True"
+
+# Trimming and mapping settings
+skip_trimming: "False"  # Set to "True" to skip trimming
+skip_mapping: "False"   # Set to "True" to skip mapping
+
+# Input file type provided:
+# BAMs_provided: "False"
+# Trimmed_fastq_provided: "False"
+# Fastq_provided: "True"
+
+# Parameters for Trimgalore
+trim_galore_pe:
+  additional_params: "--quality 20 --length 20 --stringency 1 -e 0.1"
+  threads: 24
+trim_galore_se:
+  additional_params: "--illumina -q 20 --length 20 --stringency 5 -e 0.5"
+  threads: 24
+
+# Mapping parameters for bowtie2
+map_bowtie2_se:
+  additional_params: "--very-sensitive-local --no-unal"
+  threads: 24
+map_bowtie2_pe:
+  additional_params: "--very-sensitive-local --no-mixed --no-unal --dovetail -X 1000"
+  threads: 24
+
+bootstrap_samples:
+  rounds: 10
+  samples_per_group: 3
+  seed: 1
+
+DownSample:
+  Reads: "10000000" #"3000000" 
+  Reads_PE: "20000000" #"6000000"
+  Reads_SE: "10000000" #"3000000"
+  threads: 8
+GenMap:
+  MinMap: "0.3"
+
+# Peak calling settings
+peak_calling:
+  mode: "stringent"
+  threshold: "0.1"  # "0.1" "0.2" # "0.5" "0.9" "1" "0.001"
+  normalization: "non"
+  filter_by_depth: True
+  min_depth: 5
+
+# Suspect list generation settings
+generate_suspectList:
+  num_of_samples: "9"
+  minimum_length: "10"
+  percentage_threshold: "80"
+
+
+# Peak calling using MACS2
+macs2_callpeak:
+  mappable_genome_size: 1368780147
+```
 
 3.  **Prepare the sample sheet (`samplesheet.tsv`)**: (TO BE UPDATED)
 
