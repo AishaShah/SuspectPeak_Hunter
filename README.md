@@ -3,42 +3,70 @@
 ## Vastenhouw Lab - Aisha Shah
 
 ### Overview
-SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list of problematic regions in the genome for peak calling analysis. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. This pipline can also be use to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
+
+SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data analysis by identifying "suspect regions" in the genome. These regions are consistently present across multiple samples and often appear in the top-ranked peaks, potentially overshadowing more biologically relevant, target-specific peaks. By providing a list of these recurring regions, SuspectPeak_Hunter enables users to exclude them before peak calling, ensuring that their analyses focus on peaks more likely to be relevant to the histone marks or transcription factors under study. This approach helps improve the accuracy and interpretability of CUT&RUN results, particularly for workflows relying on top-ranked peaks. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. (THIS WAS IMPLEMENTED IN PREVIOUS VERSION) It can also be used to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
 
 ### Features
-- Quality control of raw reads using FastQC
-- Read trimming using Trim Galore
-- Genome indexing and mapping using Bowtie2
-- Peak calling with SEACR
-- Suspect list generation by identifying problematic regions in the genome
-- Call Peaks after applying suspect list
+
+-   Quality control of raw reads using FastQC
+-   Read trimming using Trim Galore
+-   Genome indexing and mapping using Bowtie2
+-   Peak calling with SEACR
+-   Suspect list generation by identifying regions present across samples in different groups (i.e TF, Active marks, inactive marks)
+-   Call Peaks after applying suspect list (THIS WAS REMOVED FROM CURRENT VERSION)
 
 ### Installation
-1. **Clone the repository**:
-    ```sh
-    git clone https://github.com/yourusername/SuspectPeak_Hunter.git
-    cd SuspectPeak_Hunter
-    ```
-2. **Install required software**:
-    - Snakemake
-    - FastQC
-    - Trim Galore
-    - Bowtie2
-    - Samtools
-    - Bedtools
-    - SEACR
-    - R
 
-3. **Create and activate a conda environment** (optional but recommended):
-   (** TO BE UPDATED **)
-    ```sh
-    conda create -n suspectpeak_hunter python=3.8
-    conda activate suspectpeak_hunter
-    pip install -r requirements.txt
-    ```
+1.  **Clone the repository**: `sh     git clone https://github.com/yourusername/SuspectPeak_Hunter.git     cd SuspectPeak_Hunter`
+
+2.  **Create and activate a conda environment**: `sh     suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"     conda_pkgs_dir="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/"     mamba env create --prefix $suspeak_hunter_env -f trimgalore_env.yml     export CONDA_PKGS_DIRS=$conda_pkgs_dir     mamba install -c conda-forge pandas     conda activate $suspeak_hunter_env`
+
+3.  **Install required software from official websites**:
+
+    -   [Snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html)
+    -   [FastQC](https://anaconda.org/bioconda/fastqc)
+    -   [Trim Galore](https://github.com/FelixKrueger/TrimGalore)
+    -   [Bowtie2](https://github.com/BenLangmead/bowtie2)
+    -   [Samtools](https://www.htslib.org/download/)
+    -   [Bedtools](https://www.htslib.org/download/)
+    -   [SEACR](https://github.com/FredHutch/SEACR)
+    -   [R](https://rstudio-education.github.io/hopr/starting.html)
+
+**Or instead of using conda (skip point 2, 3) you can install docker:**
+
+[TO BE UPDATED]
 
 ### Usage
-1. **Prepare the configuration file (`config.yaml`)**:
+
+Before running pipline you have to setup download samples, setup config file and samplesheet.
+
+Samples can be downloaded manually by user or using our script download_samples.py which requires an input file with SRRXXX samples ids (one pre line). See example of input file in examples/ids.txt. s Command line: download_samples.py ids.txt
+
+**Setup input sample tsv file** **(`samplesheet.tsv`)**
+
+A tab-separated file containing the same columns as the example. The columns of the sample file are:
+
+-   **projectID**
+
+-   **ctrl:** is this a control sample or target enriched
+
+-   **shtname:** optional \<\-- not required \--\> remove
+
+-   **sample:** Sample name
+
+-   **control:** name of control sample if exists
+
+-   **rep:** replicate id of the sample. this is required for during bootstraping we not allow replicates of same sample in same bootstrap round
+
+-   **type:** PAIRED or SINGLE. required to choose mapping configuration and genomecove file \
+    configuration path: path to fastq file
+
+-   **R1:** name of read1/fwd pairs fastq
+
+-   **R2:** name of read2/rev pairs fastq (if type==PAIRED)
+
+**Prepare the configuration file (`config.yaml`)**:
+
     (** More input options to be added in future **)
     ```yaml
     workdir: "/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter"
@@ -115,67 +143,65 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to generate a suspect list o
       mappable_genome_size: 1368780147
     ```
 
-2. **Prepare the sample sheet (`samplesheet.tsv`)**:
-(TO BE UPDATED)  
+3.  **Prepare the sample sheet (`samplesheet.tsv`)**: (TO BE UPDATED)
 
-| projectID | ctrl            | shtname      | sample | control | rep | type   | path            | R1         | R2         |
-|-----------|-----------------|--------------|--------|---------|-----|--------|-----------------|------------|------------|
-| PRJXX     | target_enriched | sample1      | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | target_enriched | sample1      | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | neg_ctrl        | sample2      | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq  | SRRXX.fq   |  NA        |
-| PRJXX     | target_enriched | sample1      | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq  | SRRXX_1.fq | SRRXX_2.fq |
+| projectID | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
+|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
+| PRJXX     | target_enriched | sample1 | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
 
+3.  **Run the pipeline**:
 
-3. **Run the pipeline**:
+-   Run locally: `sh       snakemake --cores <number_of_cores>`
 
-  -  Run locally:
-      ```sh
-      snakemake --cores <number_of_cores>
-      ```
-  -  Run on HPC cluster:
-      ```sh
-      snakemake XX
-      ```
-    
-  -  Run using docker:
-      ```sh
-      snakemake XX
-      ```
-  
+-   Run on HPC cluster: `sh       snakemake XX`
+
+-   Run using docker: `sh       snakemake XX`
 
 ### Pipeline Steps
 
 #### Quality Control
+
 Perform quality control of raw reads using FastQC.
 
 #### Read Trimming
+
 Trim reads using Trim Galore to remove adapters and low-quality bases.
 
 #### Genome Indexing
+
 Index the genome using Bowtie2 for efficient mapping.
 
 #### Mapping
+
 Map the trimmed reads to the genome using Bowtie2.
 
 #### Peak Calling
+
 Identify peaks in the mapped data using SEACR.
 
 #### Generating Suspect Lists
+
 Generate a list of suspect regions in the genome based on the peak calling results.
 
 ### Contribution
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature-branch`)
-3. Commit your changes (`git commit -am 'Add new feature'`)
-4. Push to the branch (`git push origin feature-branch`)
-5. Open a pull request
+
+1.  Fork the repository
+2.  Create a new branch (`git checkout -b feature-branch`)
+3.  Commit your changes (`git commit -am 'Add new feature'`)
+4.  Push to the branch (`git push origin feature-branch`)
+5.  Open a pull request
 
 ### License
+
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ### Acknowledgements
+
 This pipeline was developed by Aisha Shah at the Vastenhouw Lab under the supervision of Prof. Nadine Vastenhouw (PI) and Dora Grabavac (PhD).
 
----
+------------------------------------------------------------------------
 
-For any issues or questions, please contact Aisha Shah at [aisha.shah@alumni.esci.upf.edu](mailto:aisha.shah@alumni.esci.upf.edu).
+For any issues or questions, please contact Aisha Shah at [aisha.shah\@alumni.esci.upf.edu](mailto:aisha.shah@alumni.esci.upf.edu).
