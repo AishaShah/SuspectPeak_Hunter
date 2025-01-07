@@ -2,11 +2,11 @@
 
 ## Vastenhouw Lab - Aisha Shah
 
-### Overview
+### **Overview**
 
 SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data analysis by identifying "suspect regions" in the genome. These regions are consistently present across multiple samples and often appear in the top-ranked peaks, potentially overshadowing more biologically relevant, target-specific peaks. By providing a list of these recurring regions, SuspectPeak_Hunter enables users to exclude them before peak calling, ensuring that their analyses focus on peaks more likely to be relevant to the histone marks or transcription factors under study. This approach helps improve the accuracy and interpretability of CUT&RUN results, particularly for workflows relying on top-ranked peaks. This pipeline automates various steps from quality control, read trimming, genome mapping, to peak calling and finally suspect list generation. (THIS WAS IMPLEMENTED IN PREVIOUS VERSION) It can also be used to apply generated suspect list and call peaks after removing suspect-list regions on a given set of samples.
 
-### Main Steps:
+### **Main Steps:**
 
 -   Quality control of raw reads using FastQC
 -   Read trimming using Trim Galore
@@ -15,7 +15,7 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
 -   Suspect list generation by identifying regions present across samples in different groups (i.e TF, Active marks, inactive marks)
 -   Call Peaks after applying suspect list (THIS WAS REMOVED FROM CURRENT VERSION)
 
-### Installation
+### **Installation**
 
 **Clone the repository**: 
 
@@ -80,7 +80,7 @@ python scripts/download_samples.py examples/ids.txt
 Replace examples/ids.txt with the path to your input file containing sample IDs.
 
 
-**Setup input sample tsv file** **(`samplesheet.tsv`)**
+**Prepare the sample sheet** **(`samplesheet.tsv`)**
 
 A tab-separated file containing the same columns as the example. The columns of the sample file are:
 
@@ -102,6 +102,16 @@ A tab-separated file containing the same columns as the example. The columns of 
 -   **R1:** name of read1/fwd pairs fastq
 
 -   **R2:** name of read2/rev pairs fastq (if type==PAIRED)
+
+
+| projectID | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
+|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
+| PRJXX     | target_enriched | sample1 | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+
+
 
 **Prepare the configuration file (`config.yaml`)**:
 
@@ -182,16 +192,7 @@ macs2_callpeak:
   mappable_genome_size: 1368780147
 ```
 
-3.  **Prepare the sample sheet (`samplesheet.tsv`)**: (TO BE UPDATED)
-
-| projectID | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
-|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
-| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
-| PRJXX     | target_enriched | sample1 | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
-
-3.  **Run the pipeline**:
+### **Run the pipeline**:
 
 -   Run locally: `sh       snakemake --cores <number_of_cores>`
 
