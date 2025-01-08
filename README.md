@@ -17,25 +17,25 @@ SuspectPeak_Hunter is a Snakemake pipeline designed to enhance CUT&RUN data anal
 
 ### Installation
 
-**Clone the repository**: 
+**Clone the repository**:
 
-```sh
+``` sh
 git clone https://github.com/yourusername/SuspectPeak_Hunter.git     
 cd SuspectPeak_Hunter
 ```
 
 **Option A: Installing in Conda environment**
 
-1.  Create and activate a conda environment: 
+1.  Create and activate a conda environment:
 
-      ```sh     
-      suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"   
-      conda_pkgs_dir="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/"     
-      mamba env create --prefix $suspeak_hunter_env -f trimgalore_env.yml     
-      export CONDA_PKGS_DIRS=$conda_pkgs_dir     
-      mamba install -c conda-forge pandas     
-      conda activate $suspeak_hunter_env
-      ```
+    ``` sh
+    suspeak_hunter_env="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_env/suspeak_hunter_env_mamba"   
+    conda_pkgs_dir="/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/conda_pkgs_dirs/"     
+    mamba env create --prefix $suspeak_hunter_env -f trimgalore_env.yml     
+    export CONDA_PKGS_DIRS=$conda_pkgs_dir     
+    mamba install -c conda-forge pandas     
+    conda activate $suspeak_hunter_env
+    ```
 
 2.  Install required software from official websites:
 
@@ -53,32 +53,32 @@ cd SuspectPeak_Hunter
 [DOCKER SECTION TO BE UPDATED]
 
 ### Usage
+
 Before running the pipeline, you need to:
 
-1. Download the samples.
-2. Prepare the samplesheet.
-3. Set up the configuration file.
+1.  Download the samples.
+2.  Prepare the samplesheet.
+3.  Set up the configuration file.
 
-
-**Downloading Samples** 
+**Downloading Samples**
 
 Samples can be downloaded either manually by the user or using the provided script: `scripts/download_samples.py`. This script requires an input file containing SRR sample IDs (one ID per line).
 
-Example Input File:
-examples/ids.txt
+Example Input File: examples/ids.txt
 
-```yaml
+``` yaml
 SRR328768  
 SRR865977  
 ERR099467  
 ```
-    
+
 Command to Run the Script:
-```sh
+
+``` sh
 python scripts/download_samples.py examples/ids.txt   
 ```
-Replace examples/ids.txt with the path to your input file containing sample IDs.
 
+Replace examples/ids.txt with the path to your input file containing sample IDs.
 
 **Prepare the sample sheet** **(`samplesheet.tsv`)**
 
@@ -96,28 +96,45 @@ A tab-separated file containing the same columns as the example. The columns of 
 
 -   **rep:** replicate id of the sample. this is required for during bootstraping we not allow replicates of same sample in same bootstrap round
 
--   **type:** PAIRED or SINGLE. required to choose mapping configuration and genomecove file \
+-   **type:** PAIRED or SINGLE. required to choose mapping configuration and genomecove file\
     configuration path: path to fastq file
 
 -   **R1:** name of read1/fwd pairs fastq
 
 -   **R2:** name of read2/rev pairs fastq (if type==PAIRED)
 
+| projectID | Group         | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
+|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| PRJXX     | TF            | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | Active Mark   | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+| PRJXX     | Active Mark   | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
+| PRJXX     | Inactive Mark | target_enriched | sample1 | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
 
-| projectID | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
-|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
-| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
-| PRJXX     | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
-| PRJXX     | target_enriched | sample1 | SRRXX  | NA      | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
+To ensure robust analysis, we recommend dividing your datasets into two groups:
 
+1.  **Suspect List Generation**: Use approximately **70%** of your samples to generate the suspect list through bootstrapping.
 
+2.  **Validation**: Use the remaining **30%** of your samples to validate the suspect list by assessing whether the identified suspect regions are present in these samples.
+
+The above mentioned `samplesheet.tsv` file, referenced in the `config.yaml`, contains metadata for all samples used in the pipeline. By default, all samples in the file are utilized for suspect list generation. To split your samples, use the provided script `scripts/split_samplesheet_data.py` which you can run using the following commandline:
+
+``` python
+python scripts/split_samplesheet_data.py --input samplesheet.tsv --output_dir split_samples
+```
+
+The script will generate two output files:
+
+-   `samplesheet_train.tsv`: For suspect list generation.
+
+-   `samplesheet_validate.tsv`: For validation.
+
+The script uses the **`Group`** column in `samplesheet.tsv` to stratify samples. It ensures **30% of samples** are selected proportionally from each group for validation. Remaining samples can be used for suspect list generation.
 
 **Prepare the configuration file (`config.yaml`)**:
 
 (More input options to be added in future)
 
-```yaml
+``` yaml
 workdir: "/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/snakemake/SuspectPeak_Hunter"
 # Genome information
 genome: "Danio_rerio.GRCz11.dna_sm.primary_assembly"
@@ -139,24 +156,19 @@ generate_suspectList:
 
 For detailed information of config.yaml file please check: [wiki/CONFIGURATION.md](https://github.com/AishaShah/SuspectPeak_Hunter/blob/main/wiki/CONFIGURATION.md)
 
-
 ### Running the pipeline
 
--   Run locally: 
-`snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter`
+-   Run locally: `snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter`
 
--   Run on HPC cluster: 
-`snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter --cluster cluster.yaml "{cluster.nodes} {cluster.time} ..."`
+-   Run on HPC cluster: `snakemake --cores <number_of_cores> Initialize_SuspectPeak_Hunter --cluster cluster.yaml "{cluster.nodes} {cluster.time} ..."`
 
-    The file cluster.yaml contain configuration for running on cluster. for each rule we can define nodes, time etc. if not specified for a rule then default parameters given by __default__ would be used. 
+    The file cluster.yaml contain configuration for running on cluster. for each rule we can define nodes, time etc. if not specified for a rule then default parameters given by **default** would be used.
 
-    ```yaml
+    ``` yaml
     rule A:
       nodes: 10
       time:00:10:00
     ```
-
-
 
 -   Run using docker: `snakemake XX`
 
