@@ -60,7 +60,7 @@ Before running the pipeline, you need to:
 2.  Prepare the samplesheet.
 3.  Set up the configuration file.
 
-**Downloading Samples**
+[**Downloading Samples**]{.underline}
 
 Samples can be downloaded either manually by the user or using the provided script: `scripts/download_samples.py`. This script requires an input file containing SRR sample IDs (one ID per line).
 
@@ -80,7 +80,7 @@ python scripts/download_samples.py examples/ids.txt
 
 Replace examples/ids.txt with the path to your input file containing sample IDs.
 
-**Prepare the sample sheet** **(`samplesheet.tsv`)**
+[**Prepare the sample sheet(`samplesheet.tsv`)**]{.underline}
 
 A tab-separated file containing the same columns as the example. The columns of the sample file are:
 
@@ -130,7 +130,7 @@ The script will generate two output files:
 
 The script uses the **`Group`** column in `samplesheet.tsv` to stratify samples. It ensures **30% of samples** are selected proportionally from each group for validation. Remaining samples can be used for suspect list generation.
 
-**Prepare the configuration file (`config.yaml`)**:
+[**Prepare the configuration file (`config.yaml`)**:]{.underline}
 
 (More input options to be added in future)
 
