@@ -20,11 +20,18 @@ genome = config["genome"] # Load genome
 # (1) #  Input files for generating suspect list
 #*****#
 
+# samplesheet for all samples
 # Load samplesheet for samples needed for suspectlist generation
-SL_array=config["SL_array"] 
+all_samples=config["all_samples"] 
 # read samplesheet and set "sample" name column as row index
-st = pd.read_table(SL_array).set_index('sample', drop=False) 
-samps = get_samples(st)   # get sample names
+all_samples_df = pd.read_table(all_samples).set_index('sample', drop=False) 
+
+
+# Load samplesheet for samples needed for suspectlist generation
+SL_generation_samples=config["SL_generation_samples"] 
+# read samplesheet and set "sample" name column as row index
+SL_generation_samples_df = pd.read_table(SL_generation_samples).set_index('sample', drop=False) 
+samps = get_samples(SL_generation_samples_df)   # get sample names
 seacr_mode=config["peak_calling"]["mode"]
 seacr_threshold=config["peak_calling"]["threshold"]
 
@@ -35,8 +42,19 @@ seacr_threshold=config["peak_calling"]["threshold"]
 #*****#
 
 
-SE=get_outfiles(samps, st, type="SE")
-PE=get_outfiles(samps, st, type="PE")
+SE=get_outfiles(samps, SL_generation_samples_df, type="SE")
+PE=get_outfiles(samps, SL_generation_samples_df, type="PE")
+
+
+import subprocess
+subprocess.run(["python3", "scripts/generate_bootstrap_arrays.py", 
+                SL_generation_samples, 
+                str(config["bootstrap_samples"]["rounds"]), 
+                str(config["bootstrap_samples"]["samples_per_group"]), 
+                "04.bootstrapping_arrays", 
+                "--seed", str(config["bootstrap_samples"]["seed"])])
+
+
 
 ##***************************************************##
 ## Generate SuspectList                              ##
@@ -49,35 +67,36 @@ rule Initialize_SuspectPeak_Hunter:
         #expand("00.data/00.Genome/{genome}.fa.fai" , genome=config["genome"]),
         #expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=PE) ,
         #expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=SE),
+        #expand("05.bootstrapping/round_{round}/00.mapping", round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
         # overlap peaks per round
         expand(
             "05.bootstrapping/05.Overlap_Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab", 
             num_reads=config["DownSample"]["Reads"],
-            #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-            round=range(1, 2 + 1),
+            round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+            #round=range(1, 2 + 1),
             seacr_threshold=config["peak_calling"]["threshold"],
             min_depth=config["peak_calling"]["min_depth"]
          ) if config["peak_calling"]["filter_by_depth"] else  expand(
             "05.bootstrapping/05.Overlap_Peaks.DS_{num_reads}/SEACR_{seacr_threshold}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab", 
             num_reads=config["DownSample"]["Reads"],
-            #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-            round=range(1, 2 + 1),
+            round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+            #round=range(1, 2 + 1),
             seacr_threshold=config["peak_calling"]["threshold"]
             ),
         
         # generate suspect list per round
         expand("05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
             num_reads=config["DownSample"]["Reads"],
-            #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-            round=range(1, 2 + 1),
+            round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+            #round=range(1, 2 + 1),
             seacr_threshold=config["peak_calling"]["threshold"],
             percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
             min_depth=config["peak_calling"]["min_depth"]
         ) if config["peak_calling"]["filter_by_depth"] else  expand(
             "05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
             num_reads=config["DownSample"]["Reads"],
-            #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-            round=range(1, 2 + 1),
+            round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+            #round=range(1, 2 + 1),
             seacr_threshold=config["peak_calling"]["threshold"],
             percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
             ),
@@ -97,6 +116,29 @@ rule Initialize_SuspectPeak_Hunter:
             ),
 
 
+##############
+# VALIDATION #
+##############
+
+
+
+rule Validate_SL:
+    input:
+        # generate suspect list per round
+        expand("05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
+            num_reads=config["DownSample"]["Reads"],
+            round="Validation",
+            seacr_threshold=config["peak_calling"]["threshold"],
+            percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
+            min_depth=config["peak_calling"]["min_depth"]
+        ) if config["peak_calling"]["filter_by_depth"] else  expand(
+            "05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
+            num_reads=config["DownSample"]["Reads"],
+            round="Validation",
+            seacr_threshold=config["peak_calling"]["threshold"],
+            percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
+            ),
+
 
 
 ####################################################################
@@ -108,7 +150,7 @@ rule Initialize_SuspectPeak_Hunter:
 # copy files or create soft links (if data stored on accessible device)
 # rule setup_input_sample_directory:
 #     input:
-#         array=SL_array
+#         array=SL_generation_samples
 #     output:
 #         expand("00.data/00.rawReads/{sample}_{id}.fastq.gz",sample=PE, id=["1","2"]) ,
 #         expand("00.data/00.rawReads/{sample}.fastq.gz",sample=SE) ,
@@ -199,7 +241,7 @@ rule trim_galore_pe:
     benchmark: "benchmarks/00.trimming.{sample}.tsv"
     params:
         #extra=config["trim_galore_pe"]["additional_params"]
-        extra=lambda wildcards: check_if_adaptors_provided(st=st, sample=wildcards.sample, trim_param=config["trim_galore_pe"]["additional_params"])
+        extra=lambda wildcards: check_if_adaptors_provided(st=all_samples_df, sample=wildcards.sample, trim_param=config["trim_galore_pe"]["additional_params"])
     log:
         "logs/01.trim_galore_{sample}.log",
     wrapper:
@@ -361,6 +403,9 @@ rule remove_mitochondrial_chromosome:
 
 
 
+
+
+
 ## TO BE ADDED ##  #### COUNT READS LEFT AFTER REMOVING MITOCHONDRIAL READS <-- done in the "remove_mitochondrial_chromosome" rule
 
 ####################################################################
@@ -376,25 +421,45 @@ rule remove_mitochondrial_chromosome:
 #*******#
 # (6.1) #  Select samples for each round   <-- what about test train split?????
 #*******#
+# Run the bootstrap script before Snakemake starts processing rules
+# Import subprocess to run the bootstrap script
 
 
-rule bootstrap_samples:
-    input:
-        metadata=SL_array
-    output:
-        outpath=directory("04.bootstrapping_arrays"),
-        expanded_files=expand("04.bootstrapping_arrays/array_{round}.tsv", round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
-        #bootstrap_dir=directory("05.bootstrapping"),
-        bam=directory(expand("05.bootstrapping/round_{round}/00.mapping", round=range(1, config["bootstrap_samples"]["rounds"] + 1)))
-    params:
-        rounds=config["bootstrap_samples"]["rounds"],
-        samples_per_group=config["bootstrap_samples"]["samples_per_group"],
-        seed=config["bootstrap_samples"]["seed"]
-    shell:
-        """
-        python3 scripts/bootstrap.py {input.metadata} {params.rounds} {params.samples_per_group} {output.outpath} --seed {params.seed} {output.bootstrap_dir}
-        """
+#rule bootstrap_samples:
+#    input:
+#        metadata=SL_generation_samples
+#    output:
+#        outpath=directory("04.bootstrapping_arrays"),
+#        expanded_files=expand("04.bootstrapping_arrays/array_{round}.tsv", round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
+#        bam=directory(expand("05.bootstrapping/round_{round}/00.mapping", round=range(1, config["bootstrap_samples"]["rounds"] + 1)))
+#    params:
+#        bootstrap_dir=directory("05.bootstrapping"),
+#        rounds=config["bootstrap_samples"]["rounds"],
+#        samples_per_group=config["bootstrap_samples"]["samples_per_group"],
+#        seed=config["bootstrap_samples"]["seed"]
+#    shell:
+#        """
+#        python3 scripts/bootstrap.py {input.metadata} {params.rounds} {params.samples_per_group} {output.outpath} --seed {params.seed} {params.bootstrap_dir}
+#        """
 
+#rule generate_bootstrap_BAM_directories:
+#    input:
+#        #sample_bam=rules.remove_mitochondrial_chromosome.output.bam_wo_MT,
+#        sample_array="04.bootstrapping_arrays/array_{round}.tsv",
+#        # sample_array=expand("04.bootstrapping_arrays/array_{round}.tsv", round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
+#        bams=lambda wildcards: expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam", 
+#                                        sample=get_outfiles(test_samps=None, test_samps_st=None, type="all",array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round)),
+#                                        seacr_mode=config["peak_calling"]["mode"]),
+#    output:
+#        bam=directory("05.bootstrapping/round_{round}/00.mapping")
+#    params:
+#        bootstrap_array_dir="04.bootstrapping_arrays",
+#        output_BAM_bootstrap_dir=directory("05.bootstrapping"),
+#        round=wildcards.round
+#    shell:
+#        """
+#        python3 scripts/prepare_bootstrap_directories.py {params.bootstrap_array_dir} {params.round} {params.output_BAM_bootstrap_dir}
+#        """
 
 #*******#
 # (6.2) #  Downsample samples for all bootstrap roundss
@@ -405,7 +470,8 @@ rule downsample_bam:
     input:
         raw="02.mapping/00.Raw/{sample}.no_MT.sorted.bam",
         #bam="05.bootstrapping/round_{round}/00.mapping/{sample}.no_MT.sorted.bam"
-        bam=rules.remove_mitochondrial_chromosome.output.bam_wo_MT
+        bam=rules.remove_mitochondrial_chromosome.output.bam_wo_MT,
+        #sample_array="04.bootstrapping_arrays/array_{round}.tsv",
     output:
         #downsampled_bam="02.mapping/01.DownSampling.{num_reads}/{round}/{sample}.no_MT.sorted.bam"
         downsampled_bam="05.bootstrapping/round_{round}/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam"
@@ -418,7 +484,7 @@ rule downsample_bam:
         reads=config["DownSample"]["Reads"],
         reads_PE=config["DownSample"]["Reads_PE"],
         reads_SE=config["DownSample"]["Reads_SE"],
-        sample_type=lambda wildcards: get_type(wildcards.sample, st)
+        sample_type=lambda wildcards: get_type(wildcards.sample, all_samples_df)
     threads: config["DownSample"]["threads"]
     benchmark:
         #"benchmarks/02.02.downsample_bam.round_{round}.{sample}.tsv"
@@ -445,7 +511,7 @@ rule bamtobed:
         bamtobed=temp("05.bootstrapping/round_{round}/02.bamtobed.DS_{num_reads}/{sample}.bamtobed")
     threads: 32
     params:
-        sample_type=lambda wildcards: get_type(wildcards.sample, st)
+        sample_type=lambda wildcards: get_type(wildcards.sample, all_samples_df)
     envmodules:
         "gcc",
         "bedtools2",
@@ -537,13 +603,11 @@ rule peak_calling:
         bebdgraph_file=rules.filter_genome_cov.output.genomecov_out_filtered 
         if config["peak_calling"]["filter_by_depth"] else 
         rules.genome_cov.output.genomecov_out
-        
         #bebdgraph_file="05.bootstrapping/round_{round}/03.genomecov.DS_{num_reads}/{sample}.bedgraph",
     output:
         seacr_out="05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}/{sample}.{seacr_mode}.bed" 
         if config["peak_calling"]["filter_by_depth"] else 
         "05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/SEACR_{seacr_threshold}/{sample}.{seacr_mode}.bed",
-
     params:
         threshold=config["peak_calling"]["threshold"],
         normalization=config["peak_calling"]["normalization"],
@@ -573,13 +637,21 @@ rule peak_calling:
 
 rule overlap_peaks:
     input:
-        sample_array="04.bootstrapping_arrays/array_{round}.tsv",
-        expanded_files=rules.bootstrap_samples.output.expanded_files,
+        #sample_array="04.bootstrapping_arrays/array_{round}.tsv",
+        sample_array=lambda wildcards: "04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round) 
+                 if wildcards.round != "Validation" 
+                 else "validation_samples.tsv",
+        #expanded_files=rules.bootstrap_samples.output.expanded_files,
         peaks=lambda wildcards: expand("05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/SEACR_{seacr_threshold}/{sample}.{seacr_mode}.bed", 
                                         round=wildcards.round, 
                                         seacr_threshold=wildcards.seacr_threshold,
                                         num_reads=wildcards.num_reads, 
-                                        sample=get_outfiles(test_samps=None, test_samps_st=None, type="all",array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round)),
+                                        sample=get_outfiles(test_samps=None, 
+                                                            test_samps_st=None, 
+                                                            type="all",
+                                                            array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round) 
+                                                            if wildcards.round != "Validation" 
+                                                            else "validation_samples.tsv"),
                                         seacr_mode=config["peak_calling"]["mode"]),
     output:
         merged_regions_binary_data = "05.bootstrapping/05.Overlap_Peaks.DS_{num_reads}/SEACR_{seacr_threshold}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab",
@@ -589,7 +661,7 @@ rule overlap_peaks:
         #peak_dir="03.PeakCalling/00.rawData/DownSampling_{num_reads}/02.peaks",
         peak_dir="05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/SEACR_{seacr_threshold}",
         bedfile_suffix=expand("{mode}.bed",mode=config["peak_calling"]["mode"]),
-        sample_array="04.bootstrapping_arrays/array_{round}.tsv"
+        #sample_array="04.bootstrapping_arrays/array_{round}.tsv"
     envmodules:
         "gcc",
         "bedtools2"
@@ -597,20 +669,29 @@ rule overlap_peaks:
         "logs/04.00.round_{round}.DownSampling_{num_reads}.SEACR_{seacr_threshold}.round_{round}.overlap_peaks.log"
     benchmark: "benchmarks/04.00.round_{round}.DownSampling_{num_reads}.SEACR_{seacr_threshold}.round_{round}.overlap_peaks.tsv"
     shell:
-        "scripts/MergeSelectedPeakFiles.sh {params.sample_array} {params.peak_dir} {params.bedfile_suffix} {output.merged_regions_binary_data} {output.merged_regions_collapsed}"
+        "scripts/MergeSelectedPeakFiles.sh {input.sample_array} {params.peak_dir} {params.bedfile_suffix} {output.merged_regions_binary_data} {output.merged_regions_collapsed}"
 
 
 
 
 use rule overlap_peaks as overlap_peaks_from_filtered_genome_cov with:
     input:
-        sample_array="04.bootstrapping_arrays/array_{round}.tsv",
-        expanded_files=rules.bootstrap_samples.output.expanded_files,
+        #sample_array="04.bootstrapping_arrays/array_{round}.tsv" if "{round}"!="Validation" else "validation_samples.tsv",
+        sample_array=lambda wildcards: "04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round) 
+                 if wildcards.round != "Validation" 
+                 else "validation_samples.tsv",
+        #expanded_files=rules.bootstrap_samples.output.expanded_files,
         peaks=lambda wildcards: expand("05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}/{sample}.{seacr_mode}.bed", 
                                         round=wildcards.round, 
                                         seacr_threshold=wildcards.seacr_threshold,
                                         num_reads=wildcards.num_reads, 
-                                        sample=get_outfiles(test_samps=None, test_samps_st=None, type="all",array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round)),
+                                        #sample=get_outfiles(test_samps=None, test_samps_st=None, type="all",array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round)),
+                                        sample=get_outfiles(test_samps=None, 
+                                                            test_samps_st=None, 
+                                                            type="all",
+                                                            array="04.bootstrapping_arrays/array_{}.tsv".format(wildcards.round) 
+                                                            if wildcards.round != "Validation" 
+                                                            else "validation_samples.tsv"),
                                         seacr_mode=config["peak_calling"]["mode"],
                                         min_depth=wildcards.min_depth),
     output:
@@ -619,7 +700,7 @@ use rule overlap_peaks as overlap_peaks_from_filtered_genome_cov with:
     params:
         peak_dir="05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}",
         bedfile_suffix=expand("{mode}.bed",mode=config["peak_calling"]["mode"]),
-        sample_array="04.bootstrapping_arrays/array_{round}.tsv"
+        #sample_array="04.bootstrapping_arrays/array_{round}.tsv"
     log:
         "logs/04.00.round_{round}.DownSampling_{num_reads}.filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.round_{round}.overlap_peaks.log"
     benchmark: "benchmarks/04.00.round_{round}.DownSampling_{num_reads}.filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.round_{round}.overlap_peaks.tsv"
@@ -646,7 +727,7 @@ rule generate_suspectList:
         num_of_samples=config["generate_suspectList"]["num_of_samples"],
         minimum_length=config["generate_suspectList"]["minimum_length"],
         percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
-        metadata=SL_array,
+        metadata=SL_generation_samples,
         outpath="05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}" 
         if config["peak_calling"]["filter_by_depth"] else 
         "05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}"
@@ -683,16 +764,16 @@ rule Regions_Present_in_all_SL:
     input:
        SL= expand("05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
         num_reads=config["DownSample"]["Reads"],
-        #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-        round=range(1, 2 + 1),
+        round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+        #round=range(1, 2 + 1),
         seacr_threshold=config["peak_calling"]["threshold"],
         percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
         min_depth=config["peak_calling"]["min_depth"])
         if config["peak_calling"]["filter_by_depth"] else
         expand("05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
         num_reads=config["DownSample"]["Reads"],
-        #round=range(1, config["bootstrap_samples"]["rounds"] + 1),
-        round=range(1, 2 + 1),
+        round=range(1, config["bootstrap_samples"]["rounds"] + 1),
+        #round=range(1, 2 + 1),
         seacr_threshold=config["peak_calling"]["threshold"],
         percentage_threshold=config["generate_suspectList"]["percentage_threshold"]),
        #filt_peaks=rules.overlap_peaks_filtered.output.merged_regions_binary_data,
@@ -719,5 +800,5 @@ rule Regions_Present_in_all_SL:
         scripts/overlap_SL.sh {params.input_dir} {output.Overlap_SLs}  
        """
 
-
+# i need to add a rule here for the final SL i.e the regions present in atleast X rounds
 
