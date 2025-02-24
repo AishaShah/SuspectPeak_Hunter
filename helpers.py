@@ -1,4 +1,11 @@
-# helpers.py
+# author: Aisha Shah
+# date: 2021-07-29
+# version: 0.1
+# file: helpers.py
+# description: Helper functions for the pipeline rules.
+# This file is used in the Snakefile to define custom functions that can be reused across multiple rules.
+
+
 import pandas as pd
 
 def get_samples(st):
@@ -94,35 +101,6 @@ def IgG_Present(sample, st):
         if pd.notna(st.loc[st['sample'] == sample, 'control'].values[0]):
             return get_control(sample, st)
     return "none"
-
-
-def get_outfiles(test_samps=None, test_samps_st=None, type="all", array=None):
-    """
-    return a list of samples PE, SE or both from a given array file of or pandas dataframe
-    """
-    outfiles_SE = []
-    outfiles_PE = []
-    if array:
-        # read samplesheet and set "sample" name column as row index
-        test_samps_st = pd.read_table(array).set_index('sample', drop=False)
-        test_samps = get_samples(test_samps_st)  # get sample names
-    
-    for sample in test_samps:
-        sample_type = get_type(sample, test_samps_st)
-        
-        if sample_type == "PAIRED":
-            outfiles_PE.append(sample)
-        elif sample_type == "SINGLE":
-            outfiles_SE.append(sample)
-    
-    if type == "SE":
-        return list(outfiles_SE)
-    elif type == "PE":
-        return list(outfiles_PE)
-    elif type == "all":
-        return list(outfiles_SE + outfiles_PE)
-    else:
-        raise ValueError("Invalid type parameter. Must be 'SE', 'PE', or 'all'.")
 
 
 def get_outfiles(test_samps=None, test_samps_st=None, type="all", array=None):
@@ -225,7 +203,7 @@ def check_if_adaptors_provided(st, sample, trim_param):
     Check if forward and reverse adaptors are provided, and generate a Trim Galore command line to use provided adaptores.
 
     Parameters:
-    - st (pd.DataFrame): DataFrame containing the sample metadata.
+    - st (str or dataframe): tsv file or pandas dataframe containing the sample metadata.
     - sample (str): Sample ID for which to check adaptors.
     - trim_param (str): Existing Trim Galore parameters to append adaptors to.
 
@@ -241,6 +219,8 @@ def check_if_adaptors_provided(st, sample, trim_param):
     - Input: trim_param="", sample="sample1"
     - Output: "-a 'FWD_ADAPTOR_SEQ' -a2 'REV_ADAPTOR_SEQ'"
     """
+    if not isinstance(st, pd.DataFrame):
+        st = pd.read_table(st).set_index('sample', drop=False)
     if pd.notna(st.loc[st['sample'] == sample, 'Fwd_adaptor'].values[0]):
         # Append forward adaptor
         fwd_adaptor = st.loc[st['sample'] == sample, 'Fwd_adaptor'].values[0]
