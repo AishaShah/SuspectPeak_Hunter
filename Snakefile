@@ -1,4 +1,12 @@
-# path to configuration file for input parameters
+######################################################################################################################
+#                                                                                                                    #
+#                                                SuspectPeakHunter                                                   #
+#                                                                                                                    #
+#                       A Snakemake pipeline for generating suspect lists for CUT&RUN data                           #
+#                                                                                                                    #
+######################################################################################################################
+                                                                                                                
+# path to the config file and in/  and in/out directories 
 configfile: 'config.yaml'
 workdir: config["workdir"]
 resultdir: config["results_dir"]
@@ -6,9 +14,9 @@ resultdir: config["results_dir"]
 # load required python packages
 import pandas as pd
 
-#***********************************************#
+#################################################
 #          Helper Functions for Metadata        #
-#***********************************************#
+#################################################
 
 from helpers import *
 
@@ -23,7 +31,6 @@ genome = config["genome"] # Load genome
 #*****#
 
 # samplesheet for all samples
-# Load samplesheet for samples needed for suspectlist generation
 all_samples=config["all_samples"] 
 # read samplesheet and set "sample" name column as row index
 all_samples_df = pd.read_table(all_samples).set_index('sample', drop=False) 
@@ -38,7 +45,8 @@ seacr_mode=config["peak_calling"]["mode"]
 seacr_threshold=config["peak_calling"]["threshold"]
 
 
-# the following is to make sure that wildcard for sampel_name does not contain "." to avoid snakemake considering sample_name=noSL.Sample1 instead of sample_name=Sample1
+# the following is to make sure that wildcard for sample_name does not contain "." 
+# to avoid snakemake considering sample_name=noSL.Sample1 instead of sample_name=Sample1
 wildcard_constraints:
     sample="[^.]+"
 
@@ -47,11 +55,14 @@ wildcard_constraints:
 # (2) #  Input files for applying suspect list
 #*****#
 
-
+# single end and paired-end sample names
 SE=get_outfiles(samps, SL_generation_samples_df, type="SE")
 PE=get_outfiles(samps, SL_generation_samples_df, type="PE")
 
 
+# The following script generates bootstrap arrays for each round
+# The script generates a tsv file for each round containing the samples to be used for that round
+# if arrays are already generated, the script will not generate them again
 import subprocess
 subprocess.run(["python3", "scripts/generate_bootstrap_arrays.py", 
                 SL_generation_samples, 
@@ -62,18 +73,37 @@ subprocess.run(["python3", "scripts/generate_bootstrap_arrays.py",
 
 
 
-##***************************************************##
-## Generate SuspectList                              ##
-##***************************************************##
+#################################################
+## Generate SuspectList                        ##
+#################################################
+# The pipeline generates suspect lists for CUT&RUN data
+# The pipeline consists of the following steps:
+# (1) Prepare Genome for Mapping
+# (2) FastQC and trimming
+# (3) Mapping
+# (4) Remove mitochondrial chromosome
+# (5) BootStrapping
+#   (5.1) Downsample samples for each bootstrap round
+#   (5.2) Convert BAM files to BED files
+#   (5.3) GenomeCov
+#   (5.4) Filter GenomeCov by min_depth filter (Optional)
+#   (5.5) PeakCalling
+#   (5.6) Overlap peaks
+#   (5.7) Generate SuspectList
+# (6) Overlap SuspectListes from all bootstrap rounds to generate all_rounds.SL.bed
+# (7) Validate SuspectList
+#   (7.1) Call peaks without removing SL regions
+#   (7.1) Remove SuspectList regions from BAMTOBED files
+#   (7.2) genomecov
+#   (7.3) Call peaks
+#   (7.4) Overlap Validation sample peaks with SuspectList
+
 
 
 # rule Initialize_SuspectPeak_Hunter runs all the other rules required for generating suspectlist
+# The rule generates suspect lists for each bootstrap round and for all rounds
 rule Initialize_SuspectPeak_Hunter:
     input:
-        #expand("00.data/00.Genome/{genome}.fa.fai" , genome=config["genome"]),
-        #expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=PE) ,
-        #expand("02.mapping/00.Raw/{sample}.no_MT.sorted.bam",sample=SE),
-        #expand("05.bootstrapping/round_{round}/00.mapping", round=range(1, config["bootstrap_samples"]["rounds"] + 1)),
         # overlap peaks per round
         expand(
             "{result_dir}/05.bootstrapping/05.Overlap_Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.mergepeaks/round_{round}.rawbam.mergedPeaks.binary.tab", 
@@ -130,30 +160,15 @@ rule Initialize_SuspectPeak_Hunter:
 ##############
 # VALIDATION #
 ##############
-
-
-
-rule Validate_partA:
-    input:
-        # generate suspect list per round
-        expand("{result_dir}/05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
-            result_dir=config["results_dir"],
-            num_reads=config["DownSample"]["Reads"],
-            round="Validation",
-            seacr_threshold=config["peak_calling"]["threshold"],
-            percentage_threshold=config["generate_suspectList"]["percentage_threshold"],
-            min_depth=config["peak_calling"]["min_depth"]
-        ) if config["peak_calling"]["filter_by_depth"] else  expand(
-            "{result_dir}/05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
-            result_dir=config["results_dir"],
-            num_reads=config["DownSample"]["Reads"],
-            round="Validation",
-            seacr_threshold=config["peak_calling"]["threshold"],
-            percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
-            ),
+# The following rules are for validating the suspect lists generated by the pipeline
+#   call peaks for validation samples without removing SL regions
+#   call peaks for validation samples after removing SL regions
+#   overlap each validation sample peaks with SL generated by rule Initialize_SuspectPeak_Hunter
 
 rule Validate_SL:
     input:
+
+        # Call peaks for validation samples and overlap them to generate peaks in validation samples. It Generates peak files of validation samples without removing SL regions
         expand("{result_dir}/05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
                 result_dir=config["results_dir"],
                 num_reads=config["DownSample"]["Reads"],
@@ -169,6 +184,8 @@ rule Validate_SL:
                 seacr_threshold=config["peak_calling"]["threshold"],
                 percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
                 ),
+
+        # Call Peaks for Validation Samples after removing SL
         expand("{result_dir}/05.bootstrapping/round_{round}/04.Peaks.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}/noSL.{sample}.{seacr_mode}.bed",
                 result_dir=config["results_dir"],
                 round="Validation",
@@ -186,6 +203,8 @@ rule Validate_SL:
                 seacr_threshold=config["peak_calling"]["threshold"],
                 seacr_mode=config["peak_calling"]["mode"],
                 sample=get_outfiles(test_samps=None,test_samps_st=None,type="all",array="validation_samples.tsv")),
+
+        # Overlap each Validation sample peaks with SL generated by rule Initialize_SuspectPeak_Hunter
         expand("{result_dir}/05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/Overlap.Validation_Samples.SL.bed",
                 result_dir=config["results_dir"],
                 num_reads=config["DownSample"]["Reads"],
@@ -264,19 +283,32 @@ rule create_genome_fasta_index:
 # (2) #  FastQC and trimming                                       #
 ####################################################################
 
-
 rule trim_galore_pe:
     input:
-        ["00.data/00.rawReads/{sample}_1.fastq.gz", "00.data/00.rawReads/{sample}_2.fastq.gz"],
+        [
+            "00.data/00.rawReads/{sample}_1.fastq.gz", 
+            "00.data/00.rawReads/{sample}_2.fastq.gz"
+        ],
     output:
-        fasta_fwd=temp("{result_dir}/01.trim/00.trimmedReads/{sample}_1.PE.fq.gz") if config['keep_trimmed_reads_fastq'] != "True" else "{result_dir}/01.trim/00.trimmedReads/{sample}_1.PE.fq.gz",
+        fasta_fwd=temp("{result_dir}/01.trim/00.trimmedReads/{sample}_1.PE.fq.gz") 
+        if config['keep_trimmed_reads_fastq'] != "True" 
+        else "{result_dir}/01.trim/00.trimmedReads/{sample}_1.PE.fq.gz",
+        
         report_fwd="{result_dir}/01.trim/00.Reports/{sample}_1.PE.trimming_report.txt",
-        fasta_rev=temp("{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz") if config['keep_trimmed_reads_fastq'] != "True" else "{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz",
+        
+        fasta_rev=temp("{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz") 
+        if config['keep_trimmed_reads_fastq'] != "True" 
+        else "{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz",
+        
         report_rev="{result_dir}/01.trim/00.Reports/{sample}_2.PE.trimming_report.txt",
     threads: 48
     benchmark: "{result_dir}/benchmarks/00.trimming.{sample}.tsv"
     params:
-        extra=lambda wildcards: check_if_adaptors_provided(st=all_samples_df, sample=wildcards.sample, trim_param=config["trim_galore_pe"]["additional_params"])
+        extra=lambda wildcards: check_if_adaptors_provided(
+            st=all_samples_df, 
+            sample=wildcards.sample, 
+            trim_param=config["trim_galore_pe"]["additional_params"]
+        )
     log:
         "{result_dir}/logs/01.trim_galore_{sample}.log",
     wrapper:
@@ -285,15 +317,24 @@ rule trim_galore_pe:
 rule trim_galore_se:
     input:
         "00.data/00.rawReads/{sample}.fastq.gz",
+
     output:
-        fasta=temp("{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz") if config['keep_trimmed_reads_fastq'] != "True" else "{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz",
+        fasta=temp("{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz") 
+        if config['keep_trimmed_reads_fastq'] != "True" 
+        else "{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz",
+
         report="{result_dir}/01.trim/00.Reports/{sample}.SE.trimming_report.txt",
+
     threads: 48
+
     benchmark: "{result_dir}/benchmarks/00.trimming.{sample}.tsv"
+
     params:
         extra=config["trim_galore_se"]["additional_params"],
+
     log:
         "{result_dir}/logs/01.trim_galore_{sample}.log",
+
     wrapper:
         "v3.10.2/bio/trim_galore/se"
 
@@ -344,8 +385,8 @@ rule trimmedReads_fastqc_SE:
 
 rule map_bowtie2_pe:
     input:
-        read1="00.data/00.rawReads/{sample}_1.fastq.gz" if config["skip_trimming"] == "True" else rules.trim_galore_pe.output.fasta_fwd,
-        read2="00.data/00.rawReads/{sample}_2.fastq.gz" if config["skip_trimming"] == "True" else rules.trim_galore_pe.output.fasta_rev,
+        read1="00.data/00.rawReads/{sample}_1.fastq.gz" if config["trim_galore_pe"]["skip_trimming"] == "True" else rules.trim_galore_pe.output.fasta_fwd,
+        read2="00.data/00.rawReads/{sample}_2.fastq.gz" if config["trim_galore_pe"]["skip_trimming"] == "True" else rules.trim_galore_pe.output.fasta_rev,
         fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.{id}.bt2",genome=config['genome'], id=["1","2","3","4","rev.1","rev.2"])
     output:
         bam=temp("{result_dir}/02.mapping/00.Raw/{sample}.sorted.bam") if config["keep_Raw_BAMs"] != "True" else "{result_dir}/02.mapping/00.Raw/{sample}.sorted.bam"
@@ -376,7 +417,7 @@ rule map_bowtie2_pe:
 
 rule map_bowtie2_se:
     input:
-        read1="00.data/00.rawReads/{sample}.fastq.gz" if config["skip_trimming"] == "True" else "{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz",
+        read1="00.data/00.rawReads/{sample}.fastq.gz" if config["trim_galore_se"]["skip_trimming"] == "True" else "{result_dir}/01.trim/00.trimmedReads/{sample}.SE.fq.gz",
         fasta=expand("00.data/00.Genome/bowtie2_index/{genome}.{id}.bt2",genome=config['genome'], id=["1","2","3","4","rev.1","rev.2"])
     output:
         bam=temp("{result_dir}/02.mapping/00.Raw/{sample}.sorted.bam") if config["keep_Raw_BAMs"] != "True" else "{result_dir}/02.mapping/00.Raw/{sample}.sorted.bam"
@@ -598,9 +639,9 @@ rule peak_calling:
        SEACR_1.3.sh {input.bebdgraph_file} {params.threshold} {params.normalization} {params.mode} {params.output_prefix}  > {log} 2>&1
        """
 
-####################################################################
-# (6) #  Overlap peaks                                             #
-####################################################################
+#**************************#
+# (5.6) #  Overlap peaks   #
+#**************************#
 
 
 rule overlap_peaks:
@@ -678,9 +719,10 @@ use rule overlap_peaks as overlap_peaks_from_filtered_genome_cov with:
 
 
 
-####################################################################
-# (7) #  Generating blacklists                                    #
-####################################################################
+#************************************#
+# (5.7) #  Generating Suspect Lists  #
+#************************************#
+
 
 
 percentage_threshold=config["generate_suspectList"]["percentage_threshold"]
@@ -728,7 +770,11 @@ rule generate_suspectList:
 
        """
 
+# BOOTSTRAPPING ENDS HERE
 
+######################################
+# (6) #  Overlap Suspect Lists       #
+######################################
 
 rule Regions_Present_in_all_SL:
     input:
@@ -779,13 +825,13 @@ rule Regions_Present_in_all_SL:
 
 
 #########################################
-### (8) applySL                       ###
+### (7) ValidateSL                    ###
 #########################################
 
 
 
 #*******#
-# (8.1) #  Remove SuspectList regions from BAMTOBED files
+# (7.1) #  Remove SuspectList regions from BAMTOBED files
 #*******#
 
 rule remove_Suspect_Regions_from_BAMTOBED:
@@ -819,7 +865,7 @@ rule remove_Suspect_Regions_from_BAMTOBED:
 
 
 #*******#
-# (8.2) #  Calculate genome covarage
+# (7.2) #  Calculate genome covarage
 #*******#
 
 rule genomecov_SL_Removed:
@@ -847,7 +893,7 @@ rule genomecov_SL_Removed:
 
 
 #*******#
-# (8.3) #  Filter Genomecov
+# (7.3) #  Filter Genomecov
 #*******#
 rule filter_genome_cov_SL_Removed:
     input: 
@@ -874,7 +920,7 @@ rule filter_genome_cov_SL_Removed:
         """
 
 #*******#
-# (8.4) #  Call Peaks
+# (7.4) #  Call Peaks
 #*******#
 rule peak_calling_SL_Removed:
     input:
@@ -903,7 +949,7 @@ rule peak_calling_SL_Removed:
        """
 
 #*******#
-# (8.5) #  Overlap each validation smaple with SL
+# (7.5) #  Overlap each validation smaple with SL
 #*******#
 
 rule Overlap_SLs_and_Validation_Samples:
