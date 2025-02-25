@@ -104,7 +104,7 @@ A tab-separated file containing the same columns as the example. The columns of 
 -   **R2:** name of read2/rev pairs fastq (if type==PAIRED)
 
 | projectID | Group         | ctrl            | shtname | sample | control | rep | type   | path           | R1         | R2         |
-|-----------|---------------|-----------------|---------|--------|---------|-----|--------|----------------|------------|------------|
+|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
 | PRJXX     | TF            | target_enriched | sample1 | SRRXX  | SRRXX   | 1   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
 | PRJXX     | Active Mark   | target_enriched | sample1 | SRRXX  | SRRXX   | 2   | PAIRED | /path/to/fastq | SRRXX_1.fq | SRRXX_2.fq |
 | PRJXX     | Active Mark   | neg_ctrl        | sample2 | SRRXX  | SRRXX   | 1   | SINGLE | /path/to/fastq | SRRXX.fq   | NA         |
@@ -186,9 +186,10 @@ python generate_configs.py config.yaml --params key=value1,value2,... [--output-
 
 **Options:**
 
--   `config`: Path to the base `config.yaml` file.
--   `--params`: Parameters to modify, provided as `key=value` or `key=value1,value2,...`. Use dot notation for nested keys, e.g., `DownSample.Reads=100,200`.
--   `--output-dir`: Directory to store generated config files (default: `generatedconfigs`).
+``` yaml
+--params: Parameters to modify, provided as `key=value` or `key=value1,value2,...`. Use dot notation for nested keys, e.g., `DownSample.Reads=100,200`.
+--output-dir: Directory to store generated config files (default: `generatedconfigs`).
+```
 
 For detailed parameter options, pass the config file with `--help`.
 
