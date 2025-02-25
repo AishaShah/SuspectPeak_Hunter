@@ -172,6 +172,34 @@ For detailed information of config.yaml file please check: [wiki/CONFIGURATION.m
 
 -   Run using docker: `snakemake XX`
 
+### Running the pipeline with different configurations
+
+#### Generating Config Files with All Combinations of Given Parameters
+
+You can generate multiple configuration files by varying parameters using the `generate_configs.py` script. This is useful for testing different settings without manually creating each config file.
+
+**Usage:**
+
+``` sh
+python generate_configs.py config.yaml --params key=value1,value2,... [--output-dir OUTPUT_DIR]
+```
+
+**Options:**
+
+-   `config`: Path to the base `config.yaml` file.
+-   `--params`: Parameters to modify, provided as `key=value` or `key=value1,value2,...`. Use dot notation for nested keys, e.g., `DownSample.Reads=100,200`.
+-   `--output-dir`: Directory to store generated config files (default: `generatedconfigs`).
+
+For detailed parameter options, pass the config file with `--help`.
+
+Example command to generate config files:
+
+``` sh
+python generate_configs.py config.yaml --params genome=hg19,hg38 --output-dir configs
+```
+
+This command will create configuration files for both `hg19` and `hg38` genomes in the `configs` directory.
+
 ### To Contribute
 
 1.  Fork the repository
