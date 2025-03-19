@@ -124,8 +124,8 @@ combined_plot
 <img src="README_files/figure-commonmark/unnamed-chunk-2-1.png"
 data-fig-align="center" />
 
-\#============================================= \# 3. Plot 2:
-Differential Binding Heatmaps
+\#=============================================  
+\# 3. Plot 2: Differential Binding Heatmaps
 \#=============================================
 
 ``` r
@@ -173,8 +173,9 @@ data-fig-align="center" />
 #dev.off()
 ```
 
-\#============================================= \# 4. Plot 3: Suspect
-Region Validation \#=============================================
+\#=============================================  
+\# 4. Plot 3: Suspect Region Validation
+\#=============================================
 
 ``` r
 # ------------------------
@@ -240,8 +241,9 @@ validation_stats %>% ggplot( aes(x = total_length, y = percent_SL, color=interac
 <img src="README_files/figure-commonmark/unnamed-chunk-4-1.png"
 data-fig-align="center" />
 
-\#============================================= \# 5. Plot 4:
-Configuration Comparison \#=============================================
+\#=============================================  
+\# 5. Plot 4: Configuration Comparison
+\#=============================================
 
 ``` r
 # ------------------------
