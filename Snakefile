@@ -1,3 +1,4 @@
+
 ######################################################################################################################
 #                                                                                                                    #
 #                                                SuspectPeakHunter                                                   #
@@ -167,7 +168,6 @@ rule Initialize_SuspectPeak_Hunter:
 
 rule Validate_SL:
     input:
-
         # Call peaks for validation samples and overlap them to generate peaks in validation samples. It Generates peak files of validation samples without removing SL regions
         expand("{result_dir}/05.bootstrapping/06.Generating_SuspectLists.DS_{num_reads}/filtered_mindepth_{min_depth}.SEACR_{seacr_threshold}.SuspectList.prcnt_{percentage_threshold}/round_{round}.SL.bed", 
                 result_dir=config["results_dir"],
@@ -294,13 +294,13 @@ rule trim_galore_pe:
         if config['keep_trimmed_reads_fastq'] != "True" 
         else "{result_dir}/01.trim/00.trimmedReads/{sample}_1.PE.fq.gz",
         
-        report_fwd="{result_dir}/01.trim/00.Reports/{sample}_1.PE.trimming_report.txt",
-        
         fasta_rev=temp("{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz") 
         if config['keep_trimmed_reads_fastq'] != "True" 
         else "{result_dir}/01.trim/00.trimmedReads/{sample}_2.PE.fq.gz",
         
+        report_fwd="{result_dir}/01.trim/00.Reports/{sample}_1.PE.trimming_report.txt",
         report_rev="{result_dir}/01.trim/00.Reports/{sample}_2.PE.trimming_report.txt",
+        
     threads: 48
     benchmark: "{result_dir}/benchmarks/00.trimming.{sample}.tsv"
     params:
@@ -497,7 +497,7 @@ rule downsample_bam:
         #sample_array="04.bootstrapping_arrays/array_{round}.tsv",
     output:
         #downsampled_bam="02.mapping/01.DownSampling.{num_reads}/{round}/{sample}.no_MT.sorted.bam"
-        downsampled_bam="{result_dir}/05.bootstrapping/round_{round}/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam"
+        downsampled_bam=temp("{result_dir}/05.bootstrapping/round_{round}/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam") if config["keep_downsampled_bam"] != "True" else "{result_dir}/05.bootstrapping/round_{round}/01.DownSampling.{num_reads}/{sample}.no_MT.sorted.bam"
     conda:
         "envs/bowtie2.yaml"
     envmodules:
@@ -998,4 +998,5 @@ rule Overlap_SLs_and_Validation_Samples:
         awk '{{filename=FILENAME; sub(/^.*\//, "", filename); print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" filename}}' $BED_FILES | sort -k1,1V -k2,2n | intersectBed -b stdin -a {input.SL} -wao > {output.overlap_VL_SL}
 
         """
+
 
