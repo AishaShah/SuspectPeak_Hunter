@@ -1,20 +1,10 @@
----
-title: "SuspectPeakHunter_Plots"
-author: "Aisha Shah (Vastenhouw Lab)"
-format: gfm
-execute:
-  echo: true
-  eval: true
-  warning: false
-  output: true
----
+# SuspectPeakHunter_Plots
+Aisha Shah (Vastenhouw Lab)
 
+\#============================================= \# 1. Load Required
+Libraries \#=============================================
 
-#=============================================
-# 1. Load Required Libraries
-#=============================================
-
-```{r message=FALSE, warning=FALSE}
+``` r
 # Data manipulation
 library(dplyr)
 library(tidyr)
@@ -34,11 +24,10 @@ library(pheatmap)   # Heatmaps
 library(DiffBind)
 ```
 
-#=============================================
-# 2. Plot 1: Dataset Overview
-#=============================================
+\#============================================= \# 2. Plot 1: Dataset
+Overview \#=============================================
 
-```{r,fig.width=10, fig.height=4, fig.align='center'}
+``` r
 # ------------------------
 # 2.1 Prepare Metadata
 # ------------------------
@@ -132,10 +121,14 @@ combined_plot <- wrap_plots(
 combined_plot
 ```
 
-#=============================================
-# 3. Plot 2: Differential Binding Heatmaps
-#=============================================
-```{r, fig.width=5.5, fig.height=5.5, fig.align='center'}
+<img src="README_files/figure-commonmark/unnamed-chunk-2-1.png"
+data-fig-align="center" />
+
+\#============================================= \# 3. Plot 2:
+Differential Binding Heatmaps
+\#=============================================
+
+``` r
 # Define paths
 workdir <- "/home/saisha/Desktop/unil_work/Aisha-Dora/snakemake/SuspectPeak_Hunter/"
 ## metadata file paths
@@ -157,6 +150,12 @@ metadata_noSL <- read.csv(input_metadata_noSL, sep = "\t")
 DBA <- dba(sampleSheet=metadata)
 #pdf(output_pdf)
 dba.plotHeatmap(DBA, ColAttributes=c(DBA_FACTOR, DBA_REPLICATE, DBA_CONDITION))
+```
+
+<img src="README_files/figure-commonmark/unnamed-chunk-3-1.png"
+data-fig-align="center" />
+
+``` r
 #dev.off()
 
 # --------------------------
@@ -165,16 +164,19 @@ dba.plotHeatmap(DBA, ColAttributes=c(DBA_FACTOR, DBA_REPLICATE, DBA_CONDITION))
 DBA_noSL <- dba(sampleSheet=metadata_noSL)
 #pdf(output_pdf_noSL)
 dba.plotHeatmap(DBA_noSL, ColAttributes=c(DBA_FACTOR, DBA_REPLICATE, DBA_CONDITION))
+```
+
+<img src="README_files/figure-commonmark/unnamed-chunk-3-2.png"
+data-fig-align="center" />
+
+``` r
 #dev.off()
 ```
 
+\#============================================= \# 4. Plot 3: Suspect
+Region Validation \#=============================================
 
-#=============================================
-# 4. Plot 3: Suspect Region Validation
-#=============================================
-
-
-```{r, fig.width=6.5, fig.height=4.5, fig.align='center'}
+``` r
 # ------------------------
 # 4.1 Load Data
 # ------------------------
@@ -235,13 +237,13 @@ validation_stats %>% ggplot( aes(x = total_length, y = percent_SL, color=interac
     guides(color=guide_legend(title="Target"))
 ```
 
+<img src="README_files/figure-commonmark/unnamed-chunk-4-1.png"
+data-fig-align="center" />
 
+\#============================================= \# 5. Plot 4:
+Configuration Comparison \#=============================================
 
-#=============================================
-# 5. Plot 4: Configuration Comparison
-#=============================================
-```{r, fig.width=6.5, fig.height=4.5, fig.align='center'}
-
+``` r
 # ------------------------
 # 5.1 Define Processing Function
 # ------------------------
@@ -306,8 +308,12 @@ ggplot(combined_data, aes(x = total_length, y = percent_SL, color = config_id)) 
     axis.text = element_text(size = 10),
     axis.title = element_text(size = 12)
   )
+```
 
+<img src="README_files/figure-commonmark/unnamed-chunk-5-1.png"
+data-fig-align="center" />
 
+``` r
 # ggplot(combined_data, aes(x = total_length, y = percent_SL, color = config_id)) +
 #   geom_point(size = 3, alpha = 0.7) +
 #   geom_smooth(method = "lm", se = FALSE,color = "firebrick") +
@@ -324,5 +330,3 @@ ggplot(combined_data, aes(x = total_length, y = percent_SL, color = config_id)) 
 #     axis.title = element_text(size = 12)
 #   )
 ```
-
-
