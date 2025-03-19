@@ -73,6 +73,15 @@ sort -k1,1V -k2,2n | \
 mergeBed -i stdin -header -c 4 -o count_distinct,distinct | \
 awk '{print $1 "\t" $2 "\t" $3 "\t" $3-$2 "\t" $4 "\t" $5}' > $merged_regions_collapsed
 
+#awk '{filename=FILENAME; sub(/^.*\//, "", filename); print $1 "\t" $2 "\t" $3 "\t" filename "\t" $5}' $BED_FILES | \
+#sort -k1,1V -k2,2n | \
+#mergeBed -i stdin -header -c 4,4,5,4 -o count_distinct,distinct,collapse,collapse | \
+#awk '{print $1 "\t" $2 "\t" $3 "\t" $3-$2 "\t" $4 "\t" $5 "\t" $6 "\t" $7}' > $merged_regions_collapsed
+# Output Example:
+# col1  col2    col3    col4        col5       col6                                     col7                        col8    
+# chr   start   end     length      n_samples  names_samples                  max_signal_of_each_sample   name_of_sample_corresponding_to_max_signal_in_col7
+# 1	    5	    1968	1963	    3	Sample1.stringent.bed,Sample2.stringent.bed 	53,26	          Sample1.stringent.bed,Sample2.stringent.bed
+
 : '
 # JUST TO GET Quick SUMMARY
 for i in {1..10}; do

@@ -1,0 +1,23 @@
+__default__:
+    time: 0:30:0
+    mem: 8G
+    account: nvastenh_competition_model
+    output: results/logs/slurm_config_%a/{rule}_%j.slurm
+    #output: {wildcards.result_dir}/logs/slurm/{rule}_%j.out
+    #errer: {wildcards.result_dir}/logs/slurm/{rule}_%j.err
+
+trim_galore_pe:
+    time: 0:80:0
+    account: nvastenh_competition_model
+
+trim_galore_se:
+    time: 0:80:0
+    account: nvastenh_competition_model
+
+map_bowtie2_se:
+    time: 0:80:0
+    account: nvastenh_competition_model
+
+map_bowtie2_pe:
+    time: 0:80:0
+    account: nvastenh_competition_model

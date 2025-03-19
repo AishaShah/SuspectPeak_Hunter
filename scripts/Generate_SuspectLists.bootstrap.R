@@ -47,26 +47,19 @@ if (is.null(options$raw_peaks_file)  ||
 }
 
 
+# Library having R packages <-- installed using script scripts/install_R_pkgs.R
+user_lib <- "/work/FAC/FBM/CIG/nvastenh/competition_model/Aisha-Dora/R_libs"
+.libPaths(user_lib)
 
+library(dplyr,lib.loc = user_lib)
+library(tidyr,lib.loc = user_lib)
+library(reshape2,lib.loc = user_lib) # for melt function
+library(ggplot2,lib.loc = user_lib)
+library(patchwork,lib.loc = user_lib)
+library(ggh4x,lib.loc = user_lib)
+library(ggVennDiagram,lib.loc = user_lib)
+library(gridExtra,lib.loc = user_lib)
 
-options(repos = c(CRAN = "https://cloud.r-project.org"))
-
-# Function to check if a package is installed
-is_package_installed <- function(package) {is.element(package, installed.packages()[,1])}
-# Check if required packages are installed, and install them if necessary
-required_packages <- c("reshape2", "ggplot2","tidyr","dplyr","patchwork","ggh4x","ggVennDiagram","gridExtra")
-missing_packages <- required_packages[!sapply(required_packages, is_package_installed)]
-print(missing_packages)
-if (length(missing_packages) > 0) {install.packages(missing_packages)}
-library(dplyr)
-library(tidyr)
-library(reshape2) # for melt function
-#library(googlesheets4)
-library(ggplot2)
-library(patchwork)
-library(ggh4x)
-library(ggVennDiagram)
-library(gridExtra)
 
 
 
